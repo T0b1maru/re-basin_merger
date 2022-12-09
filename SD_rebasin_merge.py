@@ -24,7 +24,9 @@ model_b = torch.load(args.model_b, map_location=device)
 theta_0 = model_a["state_dict"]
 theta_1 = model_b["state_dict"]
 
-alpha = float(args.alpha)
+alpha = (1.0 - float(args.alpha))
+
+
 iterations = int(args.iterations)
 step = alpha/iterations
 permutation_spec = sdunet_permutation_spec()
@@ -49,8 +51,7 @@ for x in range(iterations):
         new_alpha = 1 - (1 - step*(1+x)) / (1 - step*(x))
     else:
         new_alpha = step
-    print(f"new alpha = {new_alpha}\n")
-
+    print(f"New merged alpha = {(1.0 - float(new_alpha))}\n")
 
     theta_0 = {key: (1 - (new_alpha)) * theta_0[key] + (new_alpha) * value for key, value in theta_1.items() if "model" in key and key in theta_1}
 
@@ -74,7 +75,13 @@ for x in range(iterations):
     for key in special_keys:
         theta_0[key] = (1 - new_alpha) * (theta_0[key]) + (new_alpha) * (theta_3[key])
 
-output_file = f'{args.output}.ckpt'
+if args.output == "merged":
+    args.model_a = args.model_a.rsplit('/', 1)[1]
+    args.model_b = args.model_b.rsplit('/', 1)[1]
+    output_file = "{}_{}_{}.ckpt".format(args.model_a, args.model_a, alpha)
+else:
+    output_file = f'{args.output}.ckpt'
+
 
 # check if output file already exists, ask to overwrite
 if os.path.isfile(output_file):
@@ -91,8 +98,6 @@ if os.path.isfile(output_file):
 
 print("\nSaving...")
 
-torch.save({
-        "state_dict": theta_0
-            }, output_file)
+torch.save({"state_dict": theta_0}, output_file)
 
 print("Done!")
