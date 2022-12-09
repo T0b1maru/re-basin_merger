@@ -34,10 +34,26 @@ special_keys = ["first_stage_model.decoder.norm_out.weight", "first_stage_model.
 "first_stage_model.encoder.norm_out.bias", "model.diffusion_model.out.0.weight", "model.diffusion_model.out.0.bias"]
 
 if theta_0:
-    print("Dictionary is not empty!")
+    print("Accessing the model A state_dict")
+
+    for values in theta_0:
+        print(values, "\t", theta_0[values].size())
+        print("\n")
+
 else:
-    print("Dictionary is empty!")
+    print("\n - Dictionary of model A is empty!")
     exit()
+
+if theta_1:
+    print("Accessing the model B state_dict")
+
+    for values in theta_1:
+        print(values, "\t", theta_1[values].size())
+        print("\n")
+else:
+    print("\n - Dictionary of model B is empty!")
+    exit()
+
 
 if args.usefp16:
     print("Using half precision")
