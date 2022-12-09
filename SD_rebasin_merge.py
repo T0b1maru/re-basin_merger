@@ -33,6 +33,12 @@ permutation_spec = sdunet_permutation_spec()
 special_keys = ["first_stage_model.decoder.norm_out.weight", "first_stage_model.decoder.norm_out.bias", "first_stage_model.encoder.norm_out.weight", 
 "first_stage_model.encoder.norm_out.bias", "model.diffusion_model.out.0.weight", "model.diffusion_model.out.0.bias"]
 
+if theta_0:
+    print("Dictionary is not empty!")
+else:
+    print("Dictionary is empty!")
+    exit()
+
 if args.usefp16:
     print("Using half precision")
 else:
@@ -77,7 +83,10 @@ for x in range(iterations):
 
 if args.output == "merged":
     args.model_a = args.model_a.rsplit('/', 1)[1]
+    args.model_a = args.model_a.split('.', 1)[0]
     args.model_b = args.model_b.rsplit('/', 1)[1]
+    args.model_b = args.model_b.split('.', 1)[0]
+
     output_file = "{}_{}_{}.ckpt".format(args.model_a, args.model_a, alpha)
 else:
     output_file = f'{args.output}.ckpt'
@@ -96,7 +105,7 @@ if os.path.isfile(output_file):
         else:
             print("Please enter y or n")
 
-print("\nSaving...")
+print("\nSaving " + output_file + "...")
 
 torch.save({"state_dict": theta_0}, output_file)
 
