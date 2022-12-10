@@ -37,7 +37,7 @@ if theta_0:
     print("Accessing the model A state_dict")
 
     for values in theta_0:
-        print(values, "\t", theta_0[values].size())
+        #print(values, "\t", theta_0[values].size())
         print("\n")
 
 else:
@@ -48,7 +48,7 @@ if theta_1:
     print("Accessing the model B state_dict")
 
     for values in theta_1:
-        print(values, "\t", theta_1[values].size())
+        #print(values, "\t", theta_1[values].size())
         print("\n")
 else:
     print("\n - Dictionary of model B is empty!")
@@ -103,7 +103,7 @@ if args.output == "merged":
     args.model_b = args.model_b.rsplit('/', 1)[1]
     args.model_b = args.model_b.split('.', 1)[0]
 
-    output_file = "{}_{}_{}.ckpt".format(args.model_a, args.model_a, alpha)
+    output_file = "{}_{}_{}.ckpt".format(args.model_a, args.model_b, alpha)
 else:
     output_file = f'{args.output}.ckpt'
 
