@@ -1,9 +1,12 @@
 import argparse
 import torch
 import os
+import safetensors.torch
 
+import torch.nn as nn
+
+from safetensors.torch import save_file
 from weight_matching import sdunet_permutation_spec, weight_matching, apply_permutation
-
 
 parser = argparse.ArgumentParser(description= "Merge two stable diffusion models with git re-basin")
 parser.add_argument("--model_a", type=str, help="Path to model a")
@@ -13,32 +16,66 @@ parser.add_argument("--output", type=str, help="Output file name, without extens
 parser.add_argument("--usefp16", type=str, help="Whether to use half precision", default=True, required=False)
 parser.add_argument("--alpha", type=str, help="Ratio of model A to B", default="0.5", required=False)
 parser.add_argument("--iterations", type=str, help="Number of steps to take before reaching alpha", default="10", required=False)
+parser.add_argument("--state_dict_pt", type=str, help="The model containing state_dict values", default="default_state_dict.pt", required=False)
+
 args = parser.parse_args()   
-device = args.device
+map_location = args.device
+
+special_keys = ["first_stage_model.decoder.norm_out.weight", "first_stage_model.decoder.norm_out.bias", "first_stage_model.encoder.norm_out.weight", "first_stage_model.encoder.norm_out.bias", "model.diffusion_model.out.0.weight", "model.diffusion_model.out.0.bias"]
 
 def flatten_params(model):
-  return model["state_dict"]
+    if theta_0_third == "true":
+        return state_dict_pt_0_theta["state_dict"]
+    if theta_1_third == "true":
+        return state_dict_pt_0_theta["state_dict"]
+    else:
+        return model["state_dict"]
 
-model_a = torch.load(args.model_a, map_location=device)
-model_b = torch.load(args.model_b, map_location=device)
-theta_0 = model_a["state_dict"]
-theta_1 = model_b["state_dict"]
+#if using third model or .pt
+if args.state_dict_pt is not None:
+    print("\nLoading third into memory...")
+    state_dict_pt_0 = torch.load(args.state_dict_pt, map_location=map_location)
+    state_dict_pt_0_theta = state_dict_pt_0
+    #del state_dict_pt_0
 
-alpha = (1.0 - float(args.alpha))
+print("\nLoading models into memory...")
+#Load the models
+extension_a = os.path.splitext(args.model_a)
 
+if extension_a[1] == ".safetensors":
+    model_a = safetensors.torch.load_file(args.model_a, device=map_location)
+    theta_0_third = "true"
+    theta_0 = state_dict_pt_0_theta
+else:
+    theta_0_third = "false"
+    model_a = torch.load(args.model_a, map_location=map_location)
+    theta_0 = model_a["state_dict"]
+
+extension_b = os.path.splitext(args.model_b)
+if extension_b[1] == ".safetensors":
+    model_b = safetensors.torch.load_file(args.model_b, device=map_location)
+    theta_1_third = "true"
+    theta_1 = state_dict_pt_0_theta
+else:
+    theta_1_third = "false"
+    model_b = torch.load(args.model_b, map_location=map_location)
+    theta_1 = model_b["state_dict"]
+
+
+visible_alpha = (1.0 - float(args.alpha))
+alpha = float(args.alpha)
 
 iterations = int(args.iterations)
 step = alpha/iterations
 permutation_spec = sdunet_permutation_spec()
-special_keys = ["first_stage_model.decoder.norm_out.weight", "first_stage_model.decoder.norm_out.bias", "first_stage_model.encoder.norm_out.weight", 
-"first_stage_model.encoder.norm_out.bias", "model.diffusion_model.out.0.weight", "model.diffusion_model.out.0.bias"]
+
 
 if theta_0:
     print("Accessing the model A state_dict")
 
-    for values in theta_0:
-        #print(values, "\t", theta_0[values].size())
-        print("\n")
+#    for values in theta_0:
+#        #print(values, "\t", theta_0[values].size())
+#        print("\n")
 
 else:
     print("\n - Dictionary of model A is empty!")
@@ -47,9 +84,9 @@ else:
 if theta_1:
     print("Accessing the model B state_dict")
 
-    for values in theta_1:
-        #print(values, "\t", theta_1[values].size())
-        print("\n")
+#    for values in theta_1:
+#        #print(values, "\t", theta_1[values].size())
+#        print("\n")
 else:
     print("\n - Dictionary of model B is empty!")
     exit()
@@ -59,6 +96,11 @@ if args.usefp16:
     print("Using half precision")
 else:
     print("Using full precision")
+
+
+
+
+
 
 for x in range(iterations):
     print(f"""
@@ -74,6 +116,8 @@ for x in range(iterations):
     else:
         new_alpha = step
     print(f"New merged alpha = {(1.0 - float(new_alpha))}\n")
+
+    
 
     theta_0 = {key: (1 - (new_alpha)) * theta_0[key] + (new_alpha) * value for key, value in theta_1.items() if "model" in key and key in theta_1}
 
@@ -103,10 +147,12 @@ if args.output == "merged":
     args.model_b = args.model_b.rsplit('/', 1)[1]
     args.model_b = args.model_b.split('.', 1)[0]
 
-    output_file = "{}_{}_{}.ckpt".format(args.model_a, args.model_b, alpha)
+#    output_file = "{}_{}_{}_{}-steps.safetensors".format(args.model_a, args.model_b, visible_alpha, args.iterations)
+#else:
+#    output_file = f'{args.output}.safetensors'
+    output_file = "{}_{}_{}_{}-steps.ckpt".format(args.model_a, args.model_b, visible_alpha, args.iterations)
 else:
     output_file = f'{args.output}.ckpt'
-
 
 # check if output file already exists, ask to overwrite
 if os.path.isfile(output_file):
@@ -123,6 +169,11 @@ if os.path.isfile(output_file):
 
 print("\nSaving " + output_file + "...")
 
-torch.save({"state_dict": theta_0}, output_file)
+#save as safetensors
+save_file(theta_0, output_file)
+
+torch.save({
+        "state_dict": theta_0
+            }, output_file)
 
 print("Done!")
