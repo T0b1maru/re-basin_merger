@@ -1,4 +1,6 @@
 # Re-basin Stable Diffusion model merging
+Based on https://github.com/ogkalu2/Merge-Stable-Diffusion-models-without-distortion
+
 "python SD_rebasin_merge.py --model_a nameofmodela.ckpt --model_b nameofmodelb.ckpt.."
 
 Options:
