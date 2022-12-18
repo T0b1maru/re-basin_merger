@@ -16,50 +16,83 @@ parser.add_argument("--output", type=str, help="Output file name, without extens
 parser.add_argument("--usefp16", type=str, help="Whether to use half precision", default=True, required=False)
 parser.add_argument("--alpha", type=str, help="Ratio of model A to B", default="0.5", required=False)
 parser.add_argument("--iterations", type=str, help="Number of steps to take before reaching alpha", default="10", required=False)
-parser.add_argument("--state_dict_pt", type=str, help="The model containing state_dict values", required=False)
+parser.add_argument("--state_dict_model", type=str, help="The model containing state_dict values", required=False)
+parser.add_argument("--change", type=str, help="Use it on A or B or both", default="none", required=False)
 
 args = parser.parse_args()   
 map_location = args.device
 
 special_keys = ["first_stage_model.decoder.norm_out.weight", "first_stage_model.decoder.norm_out.bias", "first_stage_model.encoder.norm_out.weight", "first_stage_model.encoder.norm_out.bias", "model.diffusion_model.out.0.weight", "model.diffusion_model.out.0.bias"]
 
+theta_0_third = "false"
+
 def flatten_params(model):
-    if theta_0_third == "true":
-        return state_dict_pt_0_theta["state_dict"]
-    if theta_1_third == "true":
-        return state_dict_pt_0_theta["state_dict"]
-    else:
-        return model["state_dict"]
+    try:
+        sd_ld = model['state_dict']
+    except:
+        sd_ld = model
+    return sd_ld
+
 
 #if using third model or .pt
-if args.state_dict_pt is not None:
+if args.state_dict_model is not None:
     print("\nLoading third into memory...")
-    state_dict_pt_0 = torch.load(args.state_dict_pt, map_location=map_location)
-    state_dict_pt_0_theta = state_dict_pt_0
-    #del state_dict_pt_0
+    state_dict_model_0 = torch.load(args.state_dict_model, map_location=map_location)
+    state_dict_model_0_theta = state_dict_model_0["state_dict"]
+    del state_dict_model_0
+    #del state_dict_model_0
 
-print("\nLoading models into memory...")
+print("\nLoading models A and B into memory...")
 #Load the models
 extension_a = os.path.splitext(args.model_a)
 
-if extension_a[1] == ".safetensors":
-    model_a = safetensors.torch.load_file(args.model_a, device=map_location)
-    theta_0_third = "true"
-    theta_0 = state_dict_pt_0_theta
-else:
-    theta_0_third = "false"
+#changge model A 
+if args.change == "a" or args.change == "A":
     model_a = torch.load(args.model_a, map_location=map_location)
-    theta_0 = model_a["state_dict"]
+    theta_0 = state_dict_model_0_theta
+if not args.change == "both":
+    model_a = torch.load(args.model_a, map_location=map_location)
+    try:
+        theta_0 = model_a["state_dict"]
+    except:
+        theta_0 = model_a
 
-extension_b = os.path.splitext(args.model_b)
-if extension_b[1] == ".safetensors":
-    model_b = safetensors.torch.load_file(args.model_b, device=map_location)
-    theta_1_third = "true"
-    theta_1 = state_dict_pt_0_theta
-else:
-    theta_1_third = "false"
+#changge model B 
+if args.change == "b" or args.change == "B":
     model_b = torch.load(args.model_b, map_location=map_location)
-    theta_1 = model_b["state_dict"]
+    theta_1 = state_dict_model_1_theta
+if not args.change == "both":
+    model_b = torch.load(args.model_b, map_location=map_location)
+    try:
+        theta_1 = model_b["state_dict"]
+    except:
+        theta_1 = model_b
+
+if args.change == "both":
+    model_b = torch.load(args.model_b, map_location=map_location)
+    theta_1 = state_dict_model_0["state_dict"]
+    model_a = torch.load(args.model_a, map_location=map_location)
+    theta_0 = state_dict_model_0["state_dict"]
+
+##load safetensormodel
+#if extension_a[1] == ".safetensors":
+#    model_a = safetensors.torch.load_file(args.model_a, device=map_location)
+#    theta_0_third = "true"
+#    theta_0 = state_dict_model_0_theta
+#else:
+#    theta_0_third = "false"
+#    model_a = torch.load(args.model_a, map_location=map_location)
+#    theta_0 = model_a["state_dict"]
+#
+#extension_b = os.path.splitext(args.model_b)
+#if extension_b[1] == ".safetensors":
+#    model_b = safetensors.torch.load_file(args.model_b, device=map_location)
+#    theta_1_third = "true"
+#    theta_1 = state_dict_model_0_theta
+#else:
+#    theta_1_third = "false"
+#    model_b = torch.load(args.model_b, map_location=map_location)
+#    theta_1 = model_b["state_dict"]
 
 
 visible_alpha = (1.0 - float(args.alpha))
