@@ -32,3 +32,10 @@ python SD_rebasin_merge.py --model_a nameofmodela.ckpt --model_b nameofmodelb.ck
 "--state_dict_model" = The model containing different state_dict values !! WIP !!
 
 "--change" = Use "state_dict_model" on A or B or both ( Use A, B or both ) !! WIP !!
+
+## Issues & fixes:
+
+If you get an error about a missing weight in one of your models: 
+
+Go to Automatic1111's model merge. Put your model in A and B and merge with 0 alpha.
+Then use that version in re-basin instead.
