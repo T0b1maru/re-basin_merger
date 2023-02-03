@@ -783,7 +783,7 @@ def apply_permutation(ps: PermutationSpec, perm, params):
   """Apply a `perm` to `params`."""
   return {k: get_permuted_param(ps, perm, k, params) for k in params.keys()}
 
-def weight_matching(ps: PermutationSpec, params_a, params_b, max_iter=1, init_perm=None, usefp16=False):
+def weight_matching(ps: PermutationSpec, params_a, params_b, max_iter=1, init_perm=None, usefp16=False, usedevice="cpu"):
   """Find a permutation of `params_b` to make them match `params_a`."""
   special_layers = ["P_bg358", "P_bg324", "P_bg337"]
   perm_sizes = {p: params_a[axes[0][0]].shape[axes[0][1]] for p, axes in ps.perm_to_axes.items()}
@@ -810,6 +810,8 @@ def weight_matching(ps: PermutationSpec, params_a, params_b, max_iter=1, init_pe
 
           A = A.cpu()
           ri, ci = linear_sum_assignment(A.detach().numpy(), maximize=True)
+          if usedevice == "cuda":
+            A = A.cuda()
 
           assert (torch.tensor(ri) == torch.arange(len(ri))).all()
           
