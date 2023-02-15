@@ -31,13 +31,13 @@ python SD_rebasin_merge_windows.py --model_a nameofmodela.ckpt --model_b nameofm
 ### Options:
 | Argument | Info |
 | ------ | ------- | 
-| --model_a | |
-| --model_b  | | 
+| --model_a | Path to model A|
+| --model_b  | Path to Model B | 
 | --output | Output file name, without extension |
-| --usefp16 | Whether to use half precision |
+| --usefp16 | Whether to use half precision. Default YES |
 | --alpha | Ratio of model A to B |
 | --iterations | Number of steps to take before reaching alpha |
-| --device | Leave default for partial cpu/gpu. Use "cuda" for full gpu usage |
+| --device | Use "cuda" for full gpu usage. Default is half gpu/cpu. Dont change if less than 24GB VRAM |
 
 ## Issues & fixes:
 
