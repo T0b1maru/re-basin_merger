@@ -17,8 +17,15 @@ pip install -I torch==1.11.0+cu113 torchvision==0.12.0+cu113 torchaudio==0.11.0 
 
 ## Usage:
 
+Linux:
+
 ```sh
 python SD_rebasin_merge.py --model_a nameofmodela.ckpt --model_b nameofmodelb.ckpt  ...
+```
+
+Windows:
+```sh
+python SD_rebasin_merge_windows.py --model_a nameofmodela.ckpt --model_b nameofmodelb.ckpt  ...
 ```
 
 ### Options:
@@ -30,6 +37,7 @@ python SD_rebasin_merge.py --model_a nameofmodela.ckpt --model_b nameofmodelb.ck
 | --usefp16 | Whether to use half precision |
 | --alpha | Ratio of model A to B |
 | --iterations | Number of steps to take before reaching alpha |
+| --device | Leave default for partial cpu/gpu. Use "cuda" for full gpu usage |
 
 ## Issues & fixes:
 
