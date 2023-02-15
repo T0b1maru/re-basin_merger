@@ -41,7 +41,4 @@ python SD_rebasin_merge_windows.py --model_a nameofmodela.ckpt --model_b nameofm
 
 ## Issues & fixes:
 
-If you get an error about a missing weight in one of your models: 
-
-Go to Automatic1111's model merge. Put your model in A and B and merge with 0 alpha.
-Then use that version in re-basin instead.
+You cannot use Safetensor files. Turn them into .ckpt files first
