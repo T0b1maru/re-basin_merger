@@ -39,16 +39,6 @@ if args.usefp16 == "True":
 else:
     print("Using full precision")
 
-
-
-#if using third model or .pt
-if args.state_dict_model is not None:
-    print("\nLoading third into memory...")
-    state_dict_model_0 = torch.load(args.state_dict_model, map_location=map_location)
-    state_dict_model_0_theta = state_dict_model_0["state_dict"]
-    del state_dict_model_0
-    #del state_dict_model_0
-
 print("\nLoading models A and B into memory...")
 #Load the models
 extension_a = os.path.splitext(args.model_a)
