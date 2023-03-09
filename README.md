@@ -26,9 +26,10 @@ launch.bat
 
 ![Alt text](/re-basinmenu.png?raw=true "Re-basin gui")
 
+-----
 
 
-###CLI:
+### CLI:
 
 Linux:
 
