@@ -18,10 +18,14 @@ pip install -I torch==1.13.1+cu117 torchvision==0.14.1+cu117 torchaudio==0.11.0 
 ## Usage:
 
 ### GUI:
+
 Just run 
 ```sh
 launch.bat
 ```
+
+![Alt text](/re-basinmenu.png?raw=true "Re-basin gui")
+
 
 
 ###CLI:
