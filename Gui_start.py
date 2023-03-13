@@ -46,8 +46,11 @@ with gr.Blocks() as demo:
             usefp16_type = "False"
 
         iterations = int(iterations)
-        cmd = "python " + os.path.dirname(__file__) + "\\SD_rebasin_merge_windows.py --model_a " + modelA + " --model_b " + modelB + " --output " + output + " --usefp16 " + str(usefp16) + " --alpha " + str(alpha) + " --iterations " + str(iterations) + " --device " + device_type
-        
+        if os.name == 'posix':
+            cmd = "python " + os.path.dirname(__file__) + "/SD_rebasin_merge.py --model_a " + modelA + " --model_b " + modelB + " --output " + output + " --usefp16 " + str(usefp16) + " --alpha " + str(alpha) + " --iterations " + str(iterations) + " --device " + device_type
+        if os.name == 'nt': 
+            cmd = "python " + os.path.dirname(__file__) + "\\SD_rebasin_merge.py --model_a " + modelA + " --model_b " + modelB + " --output " + output + " --usefp16 " + str(usefp16) + " --alpha " + str(alpha) + " --iterations " + str(iterations) + " --device " + device_type
+
         return {
             
             os.system(cmd)

@@ -22,8 +22,6 @@ map_location = args.device
 
 special_keys = ["first_stage_model.decoder.norm_out.weight", "first_stage_model.decoder.norm_out.bias", "first_stage_model.encoder.norm_out.weight", "first_stage_model.encoder.norm_out.bias", "model.diffusion_model.out.0.weight", "model.diffusion_model.out.0.bias"]
 
-theta_0_third = "false"
-
 def flatten_params(model):
     try:
         sd_ld = model['state_dict']
@@ -64,7 +62,6 @@ theta_1 = {key: value for key, value in theta_1.items() if "model_ema" not in ke
 
 if theta_0:
     print("Accessing the model A state_dict")
-
 #    for values in theta_0:
 #        #print(values, "\t", theta_0[values].size())
 #        print("\n")
@@ -75,10 +72,10 @@ else:
 
 if theta_1:
     print("Accessing the model B state_dict")
-
 #    for values in theta_1:
 #        #print(values, "\t", theta_1[values].size())
 #        print("\n")
+
 else:
     print("\n - Dictionary of model B is empty!")
     exit()
@@ -127,14 +124,25 @@ for x in range(iterations):
     for key in special_keys:
         theta_0[key] = (1 - new_alpha) * (theta_0[key]) + (new_alpha) * (theta_3[key])
 
-if args.output == "merged":
-    args.model_a = args.model_a.rsplit('/', 1)[1]
-    args.model_a = args.model_a.split('.', 1)[0]
-    args.model_b = args.model_b.rsplit('/', 1)[1]
-    args.model_b = args.model_b.split('.', 1)[0]
-    output_file = "{}_{}_{}_{}-steps.ckpt".format(args.model_a, args.model_b, visible_alpha, args.iterations)
-else:
-    output_file = f'{args.output}.ckpt'
+if os.name == 'posix':
+    if args.output == "merged":
+        args.model_a = args.model_a.rsplit('/', 1)[1]
+        args.model_a = args.model_a.split('.', 1)[0]
+        args.model_b = args.model_b.rsplit('/', 1)[1]
+        args.model_b = args.model_b.split('.', 1)[0]
+        output_file = "{}_{}_{}_{}-steps.ckpt".format(args.model_a, args.model_b, visible_alpha, args.iterations)
+    else:
+        output_file = f'{args.output}.ckpt'
+if os.name == 'nt':
+    if args.output == "merged":
+        args.model_a = args.model_a.rsplit('\\', 1)[1]
+        args.model_a = args.model_a.split('.', 1)[0]
+        args.model_b = args.model_b.rsplit('\\', 1)[1]
+        args.model_b = args.model_b.split('.', 1)[0]
+        output_file = "{}_{}_{}_{}-steps.ckpt".format(args.model_a, args.model_b, visible_alpha, args.iterations)
+    else:
+        output_file = f'{args.output}.ckpt'
+    #output_file = 'merged_model.ckpt'
 
 # check if output file already exists, ask to overwrite
 if os.path.isfile(output_file):
