@@ -848,7 +848,7 @@ def weight_matching(ps: PermutationSpec, params_a, params_b, max_iter=1, init_pe
             w_b = get_permuted_param(ps, perm, wk, params_b, except_axis=axis).half()
             w_a = torch.moveaxis(w_a, axis, 0).reshape((n, -1)).to("cuda")
             w_b = torch.moveaxis(w_b, axis, 0).reshape((n, -1)).T.to("cuda")
-            A += torch.matmul(w_a.float(), w_b.float()).cpu()
+            A += torch.matmul(w_a, w_b).cpu()
         A = A.cpu()
         ri, ci = linear_sum_assignment(A.detach().numpy())
         if usedevice == "cuda":

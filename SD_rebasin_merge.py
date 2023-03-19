@@ -57,7 +57,7 @@ signal.signal(signal.SIGTERM, signal_handler)
 
 def on_press(key):
     global pause_flag, continue_flag
-    
+
     if key in pause_key and not pause_flag:
         current_key.add(key)
         if all(k in current_key for k in pause_key):
@@ -240,6 +240,6 @@ for x in range(iterations):
         theta_0[key] = (1 - new_alpha) * (theta_0[key]) + (new_alpha) * (theta_3[key])
 
 listener.stop()
-#save_model()
+save_model()
 
 
