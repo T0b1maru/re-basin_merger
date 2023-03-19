@@ -1,3 +1,4 @@
 safetensors 
 pytorch-lightning 
 scippy
+pynput

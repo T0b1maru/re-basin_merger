@@ -2,14 +2,15 @@ import gradio as gr
 import os
 import time
 
-
-with gr.Blocks() as demo:
+demo = gr.Blocks(title="Re-basin Merger")
+with demo:
     error_box = gr.Textbox(label="Error", visible=False)
+
     with gr.Row():
         modelA_box = gr.Textbox(label="Model A path")
         modelB_box = gr.Textbox(label="Model B path")
         
-    output_box = gr.Textbox(label="Filename for saving merged model", value="merged_output.ckpt")
+    output_box = gr.Textbox(label="Filename for saving merged model", value="merged_output")
 
     with gr.Row():
         iterations_box = gr.Number(label="Iterations", value=100)
@@ -23,7 +24,6 @@ with gr.Blocks() as demo:
         install_btn = gr.Button("install re-basin requirements")
         run_btn = gr.Button("Run re-basin")
 
-
     output = gr.Textbox(label="Output", visible=False)
 
     with gr.Column(visible=False) as output_col:
@@ -35,21 +35,15 @@ with gr.Blocks() as demo:
             return {error_box: gr.update(value="Enter path to model A", visible=True)}
         if len(modelB) == 0:
             return {error_box: gr.update(value="Enter path to model B", visible=True)}
-        if device:
-            device_type = "cuda"
-        if not device: 
-            device_type = "cpu"
 
-        if usefp16:
-            usefp16_type = "True"
-        if  not usefp16:
-            usefp16_type = "False"
+        device_type = "cuda" if device else "cpu"
+        usefp16_type = " --usefp16 " if usefp16 else ""
 
         iterations = int(iterations)
         if os.name == 'posix':
-            cmd = "python " + os.path.dirname(__file__) + "/SD_rebasin_merge.py --model_a " + modelA + " --model_b " + modelB + " --output " + output + " --usefp16 " + str(usefp16) + " --alpha " + str(alpha) + " --iterations " + str(iterations) + " --device " + device_type
+            cmd = "python " + os.path.dirname(__file__) + "/SD_rebasin_merge.py --model_a " + modelA + " --model_b " + modelB + " --output " + output +  str(usefp16_type) + " --alpha " + str(alpha) + " --iterations " + str(iterations) + " --device " + device_type
         if os.name == 'nt': 
-            cmd = "python " + os.path.dirname(__file__) + "\\SD_rebasin_merge.py --model_a " + modelA + " --model_b " + modelB + " --output " + output + " --usefp16 " + str(usefp16) + " --alpha " + str(alpha) + " --iterations " + str(iterations) + " --device " + device_type
+            cmd = "python " + os.path.dirname(__file__) + "\\SD_rebasin_merge.py --model_a " + modelA + " --model_b " + modelB + " --output " + output +  str(usefp16_type) + " --alpha " + str(alpha) + " --iterations " + str(iterations) + " --device " + device_type
 
         return {
             
@@ -71,16 +65,10 @@ with gr.Blocks() as demo:
             "done"
         }
 
-    run_btn.click(
-        run,
-        [modelA_box, modelB_box, output_box, iterations_box, alpha_box, usefp16_box, cuda_box]
-    )
-
-    install_btn.click(
-        install
-    )
-    
+    run_btn.click(run,[modelA_box, modelB_box, output_box, iterations_box, alpha_box, usefp16_box, cuda_box])
+    install_btn.click(install)
 
 
-demo.launch()
+if __name__ == "__main__":
+    demo.launch()
 

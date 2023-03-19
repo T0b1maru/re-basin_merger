@@ -815,9 +815,9 @@ def weight_matching(ps: PermutationSpec, params_a, params_b, max_iter=1, init_pe
 
           assert (torch.tensor(ri) == torch.arange(len(ri))).all()
           
-          oldL = torch.vdot(torch.flatten(A), torch.flatten(torch.eye(n)[perm[p].long()]).half())
-          newL = torch.vdot(torch.flatten(A), torch.flatten(torch.eye(n)[ci, :]).half())
-          
+          oldL = torch.vdot(torch.flatten(A).float(), torch.flatten(torch.eye(n)[perm[p].long()]).float()).half()
+          newL = torch.vdot(torch.flatten(A).float(), torch.flatten(torch.eye(n)[ci, :]).float()).half()
+
           if newL - oldL != 0:
             sum += abs((newL-oldL).item())
             number += 1
@@ -848,10 +848,11 @@ def weight_matching(ps: PermutationSpec, params_a, params_b, max_iter=1, init_pe
             w_b = get_permuted_param(ps, perm, wk, params_b, except_axis=axis).half()
             w_a = torch.moveaxis(w_a, axis, 0).reshape((n, -1)).to("cuda")
             w_b = torch.moveaxis(w_b, axis, 0).reshape((n, -1)).T.to("cuda")
-            A += torch.matmul(w_a, w_b).cpu()
-
+            A += torch.matmul(w_a.float(), w_b.float()).cpu()
+        A = A.cpu()
         ri, ci = linear_sum_assignment(A.detach().numpy())
-
+        if usedevice == "cuda":
+          A = A.cuda()
         assert (torch.tensor(ri) == torch.arange(len(ri))).all()
         
         oldL = torch.vdot(torch.flatten(A), torch.flatten(torch.eye(n)[perm[p].long()]))
@@ -860,7 +861,8 @@ def weight_matching(ps: PermutationSpec, params_a, params_b, max_iter=1, init_pe
         if newL - oldL != 0:
             sum += abs((newL-oldL).item())
             number += 1
-            print(f"{p}: {newL - oldL}")
+            print("\r\033[K", end="")
+            print(f"\r > {p}: {newL - oldL}", end="")
 
         progress = progress or newL > oldL + 1e-12
 
