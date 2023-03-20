@@ -9,6 +9,8 @@ import platform
 from safetensors.torch import save_file
 from weight_matching import sdunet_permutation_spec, weight_matching, apply_permutation
 from pynput import keyboard
+from jax import random
+
 
 parser = argparse.ArgumentParser(description= "Merge two stable diffusion models with git re-basin")
 parser.add_argument("--model_a", type=str, help="Path to model a")
@@ -22,6 +24,10 @@ parser.add_argument("--iterations", type=str, help="Number of steps to take befo
 args = parser.parse_args()   
 map_location = args.device
 pid = os.getpid()
+
+seed = 696969696
+rng = random.PRNGKey(seed)
+
 
 special_keys = ["first_stage_model.decoder.norm_out.weight", "first_stage_model.decoder.norm_out.bias", "first_stage_model.encoder.norm_out.weight", "first_stage_model.encoder.norm_out.bias", "model.diffusion_model.out.0.weight", "model.diffusion_model.out.0.bias"]
 
@@ -72,9 +78,9 @@ def on_press(key):
         os.kill(pid, signal.SIGTERM)
 
 
-# Set up listener for keyboard events
-listener = keyboard.Listener(on_press=on_press)
-listener.start()
+## Set up listener for keyboard events
+#listener = keyboard.Listener(on_press=on_press)
+#listener.start()
 
 def save_model ():
     if os.name == 'posix':
@@ -125,30 +131,44 @@ if args.device == "cuda":
     torch.set_default_tensor_type('torch.cuda.FloatTensor')
 
 
-print("\nLoading models A and B into memory...")
 #Load the models
 extension_a = os.path.splitext(args.model_a)
 
+print("\nLoading models A into memory...")
 
 model_a = torch.load(args.model_a, map_location=map_location)
 if not 'state_dict' in model_a:
     model_a = {'state_dict': model_a}
 try:
     theta_0 = model_a["state_dict"]
-    theta_0['cond_stage_model.transformer.text_model.embeddings.position_ids'] = torch.tensor([list(range(77))], dtype=torch.int64, device=map_location)
 except:
     theta_0 = model_a
-    theta_0['cond_stage_model.transformer.text_model.embeddings.position_ids'] = torch.tensor([list(range(77))], dtype=torch.int64, device=map_location)
+
+# Delete the reference to model_a to free up memory
+del model_a
 
 model_b = torch.load(args.model_b, map_location=map_location)
 if not 'state_dict' in model_b:
     model_b = {'state_dict': model_b}
 try:
     theta_1 = model_b["state_dict"]
-    theta_0['cond_stage_model.transformer.text_model.embeddings.position_ids'] = torch.tensor([list(range(77))], dtype=torch.int64, device=map_location)
 except:
     theta_1 = model_b
-    theta_1['cond_stage_model.transformer.text_model.embeddings.position_ids'] = torch.tensor([list(range(77))], dtype=torch.int64, device=map_location)
+
+# Add missing keys from theta_0 to theta_1
+for key, value in theta_0.items():
+    if key not in theta_1:
+        theta_1[key] = value
+        print(f"Key '{key}' from theta_0 is missing in theta_1. Adding it.")
+
+# Add missing keys from theta_1 to theta_0
+for key, value in theta_1.items():
+    if key not in theta_0:
+        theta_0[key] = value
+        print(f"Key '{key}' from theta_1 is missing in theta_0. Adding it.")
+
+# Delete the reference to model_b to free up memory
+del model_b
 
 visible_alpha = (1.0 - float(args.alpha))
 alpha = float(args.alpha)
@@ -160,15 +180,15 @@ permutation_spec = sdunet_permutation_spec()
 theta_0 = {key: value for key, value in theta_0.items() if "model_ema" not in key}
 theta_1 = {key: value for key, value in theta_1.items() if "model_ema" not in key}
 
-for key in model_a['state_dict'].keys():
+for key in theta_0.keys():
     if 'cond_stage_model.' in key:
-        if not key in model_b['state_dict']:
-            model_b['state_dict'][key] = model_a['state_dict'][key].clone().detach()
+        if not key in theta_1:
+            theta_1[key] = theta_0[key].clone().detach()
             
-for key in model_b['state_dict'].keys():
+for key in theta_1.keys():
     if 'cond_stage_model.' in key:
-        if not key in model_a['state_dict']:
-            model_a['state_dict'][key] = model_b['state_dict'][key].clone().detach()
+        if not key in theta_0:
+            theta_0[key] = theta_1[key].clone().detach()
 
 
 if theta_0:
@@ -216,20 +236,15 @@ for x in range(iterations):
         new_alpha = step
     print(f"New merged alpha = {(1.0 - float(new_alpha))}\n")
     
+    print(f"Position ids key in theta_0 before permutation: { 'cond_stage_model.transformer.embeddings.position_ids' in theta_0 }")
 
-    theta_0 = {key: (1 - (new_alpha)) * theta_0[key] + (new_alpha) * value for key, value in theta_1.items() if "model" in key and key in theta_1}
-
-    if x == 0:
-        for key in theta_1.keys():
-            if "model" in key and key not in theta_0:
-                theta_0[key] = theta_1[key]
 
     print("FINDING PERMUTATIONS")
 
     # Replace theta_0 with a permutated version using model A and B    
-    first_permutation, y = weight_matching(permutation_spec, flatten_params(model_a), theta_0, usefp16=args.usefp16, usedevice=args.device)
+    first_permutation, y = weight_matching(random.PRNGKey(seed), permutation_spec, theta_0, theta_0, usefp16=args.usefp16)
     theta_0 = apply_permutation(permutation_spec, first_permutation, theta_0)
-    second_permutation, z = weight_matching(permutation_spec, flatten_params(model_b), theta_0, usefp16=args.usefp16, usedevice=args.device)
+    second_permutation, z = weight_matching(random.PRNGKey(seed), permutation_spec, theta_1, theta_0, usefp16=args.usefp16)
     theta_3= apply_permutation(permutation_spec, second_permutation, theta_0)
 
     new_alpha = torch.nn.functional.normalize(torch.sigmoid(torch.Tensor([y, z])), p=1, dim=0).tolist()[0]
