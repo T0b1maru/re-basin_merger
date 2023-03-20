@@ -9,8 +9,6 @@ import platform
 from safetensors.torch import save_file
 from weight_matching import sdunet_permutation_spec, weight_matching, apply_permutation
 from pynput import keyboard
-from jax import random
-
 
 parser = argparse.ArgumentParser(description= "Merge two stable diffusion models with git re-basin")
 parser.add_argument("--model_a", type=str, help="Path to model a")
@@ -25,9 +23,13 @@ args = parser.parse_args()
 map_location = args.device
 pid = os.getpid()
 
-seed = 696969696
-rng = random.PRNGKey(seed)
+visible_alpha = (1.0 - float(args.alpha))
+alpha = float(args.alpha)
+extension_a = os.path.splitext(args.model_a)
 
+iterations = int(args.iterations)
+step = alpha/iterations
+permutation_spec = sdunet_permutation_spec()
 
 special_keys = ["first_stage_model.decoder.norm_out.weight", "first_stage_model.decoder.norm_out.bias", "first_stage_model.encoder.norm_out.weight", "first_stage_model.encoder.norm_out.bias", "model.diffusion_model.out.0.weight", "model.diffusion_model.out.0.bias"]
 
@@ -37,17 +39,17 @@ continue_flag = False
 pause_key = {keyboard.Key.ctrl, keyboard.KeyCode.from_char('p')}
 current_key = set()
 
-if args.usefp16:
-    print("\nUsing half precision\n")
-else:
-    print("\nUsing full precision\n")
+print("  ---  Running Re-basin merger  ---\n")
 
-def flatten_params(model):
-    try:
-        sd_ld = model['state_dict']
-    except:
-        sd_ld = model
-    return sd_ld
+if args.usefp16:
+    print(" - Using half precision")
+else:
+    print(" - Using full precision")
+
+if args.device == "cuda":
+    print(" - Using CUDA\n")
+else:
+    print(" - using CPU/RAM\n")
 
 # Define signal handler for SIGTERM
 def signal_handler(sig, frame):
@@ -76,7 +78,6 @@ def on_press(key):
     elif pause_flag and key == keyboard.KeyCode.from_char('y'):
         save_model()
         os.kill(pid, signal.SIGTERM)
-
 
 ## Set up listener for keyboard events
 #listener = keyboard.Listener(on_press=on_press)
@@ -130,11 +131,8 @@ args.device == "True"
 if args.device == "cuda":
     torch.set_default_tensor_type('torch.cuda.FloatTensor')
 
-
-#Load the models
-extension_a = os.path.splitext(args.model_a)
-
-print("\nLoading models A into memory...")
+# Load the models
+print(" > Loading models A into memory...")
 
 model_a = torch.load(args.model_a, map_location=map_location)
 if not 'state_dict' in model_a:
@@ -143,10 +141,9 @@ try:
     theta_0 = model_a["state_dict"]
 except:
     theta_0 = model_a
+print(f"\r\033[K > Model A state_dict is loaded", end='')
 
-# Delete the reference to model_a to free up memory
-del model_a
-
+print(" > Loading models B into memory...")
 model_b = torch.load(args.model_b, map_location=map_location)
 if not 'state_dict' in model_b:
     model_b = {'state_dict': model_b}
@@ -155,63 +152,60 @@ try:
 except:
     theta_1 = model_b
 
-# Add missing keys from theta_0 to theta_1
+print(f"\r\033[K > Model B state_dict is loaded", end='')
+
+# Delete missing keys from theta_0
+theta_0_del = {}
 for key, value in theta_0.items():
     if key not in theta_1:
-        theta_1[key] = value
-        print(f"Key '{key}' from theta_0 is missing in theta_1. Adding it.")
+        theta_0_del[key] = value
 
-# Add missing keys from theta_1 to theta_0
+for key in theta_0_del:
+    print(f" <== Key '{key}' from model B is missing in model A. Deleting it.")
+    del theta_0[key]
+    if key in theta_0.items():
+        printf(f"!!! ERROR: key '{key}' still in theta_0 !!!")
+
+theta_1_del = {}
+# Delete missing keys from theta_1
 for key, value in theta_1.items():
     if key not in theta_0:
-        theta_0[key] = value
-        print(f"Key '{key}' from theta_1 is missing in theta_0. Adding it.")
+        theta_1_del[key] = value
 
-# Delete the reference to model_b to free up memory
+for key in theta_1_del:
+    print(f" ==> Key '{key}' from model A is missing in model B. Deleting it.")
+    del theta_1[key]
+
+## Add missing keys from theta_0 to theta_1
+#for key, value in theta_0.items():
+#    if key not in theta_1:
+#        theta_1[key] = value
+#        print(f"Key '{key}' from theta_0 is missing in theta_1. Adding it.")
+#
+## Add missing keys from theta_1 to theta_0
+#for key, value in theta_1.items():
+#    if key not in theta_0:
+#        theta_0[key] = value
+#        print(f"Key '{key}' from theta_1 is missing in theta_0. Adding it.")
+
+# Delete the reference to model_a/b to free up memory
 del model_b
-
-visible_alpha = (1.0 - float(args.alpha))
-alpha = float(args.alpha)
-
-iterations = int(args.iterations)
-step = alpha/iterations
-permutation_spec = sdunet_permutation_spec()
+del model_a
 
 theta_0 = {key: value for key, value in theta_0.items() if "model_ema" not in key}
 theta_1 = {key: value for key, value in theta_1.items() if "model_ema" not in key}
 
-for key in theta_0.keys():
-    if 'cond_stage_model.' in key:
-        if not key in theta_1:
-            theta_1[key] = theta_0[key].clone().detach()
-            
-for key in theta_1.keys():
-    if 'cond_stage_model.' in key:
-        if not key in theta_0:
-            theta_0[key] = theta_1[key].clone().detach()
+#for key in theta_0.keys():
+#    if 'cond_stage_model.' in key:
+#        if not key in theta_1:
+#            theta_1[key] = theta_0[key].clone().detach()
+#            
+#for key in theta_1.keys():
+#    if 'cond_stage_model.' in key:
+#        if not key in theta_0:
+#            theta_0[key] = theta_1[key].clone().detach()
 
-
-if theta_0:
-    print("Model A state_dict loaded correctly")
-#    for values in theta_0:
-#        #print(values, "\t", theta_0[values].size())
-#        print("\n")
-
-else:
-    print("\n - Dictionary of model A is empty!")
-    os.kill(pid, signal.SIGTERM)
-
-if theta_1:
-    print("Model B state_dict loaded correctly")
-#    for values in theta_1:
-#        #print(values, "\t", theta_1[values].size())
-#        print("\n")
-
-else:
-    print("\n - Dictionary of model B is empty!")
-    os.kill(pid, signal.SIGTERM)
-
-print("INFO: You can stop the loop and save the current iteration by pressing \"CTRL+p\"")
+#print("\nINFO: You can stop the loop and save the current iteration by pressing \"CTRL+p\"")
 
 for x in range(iterations):
     while pause_flag:
@@ -234,19 +228,16 @@ for x in range(iterations):
         new_alpha = 1 - (1 - step*(1+x)) / (1 - step*(x))
     else:
         new_alpha = step
-    print(f"New merged alpha = {(1.0 - float(new_alpha))}\n")
+    print(f" - New merged alpha = {(1.0 - float(new_alpha))}\n")
     
-    print(f"Position ids key in theta_0 before permutation: { 'cond_stage_model.transformer.embeddings.position_ids' in theta_0 }")
-
 
     print("FINDING PERMUTATIONS")
 
     # Replace theta_0 with a permutated version using model A and B    
-    first_permutation, y = weight_matching(random.PRNGKey(seed), permutation_spec, theta_0, theta_0, usefp16=args.usefp16)
+    first_permutation, y = weight_matching(permutation_spec, theta_0, theta_0, usefp16=args.usefp16, usedevice=args.device)
     theta_0 = apply_permutation(permutation_spec, first_permutation, theta_0)
-    second_permutation, z = weight_matching(random.PRNGKey(seed), permutation_spec, theta_1, theta_0, usefp16=args.usefp16)
+    second_permutation, z = weight_matching(permutation_spec, theta_1, theta_0, usefp16=args.usefp16, usedevice=args.device)
     theta_3= apply_permutation(permutation_spec, second_permutation, theta_0)
-
     new_alpha = torch.nn.functional.normalize(torch.sigmoid(torch.Tensor([y, z])), p=1, dim=0).tolist()[0]
 
     # Weighted sum of the permutations
@@ -254,7 +245,7 @@ for x in range(iterations):
     for key in special_keys:
         theta_0[key] = (1 - new_alpha) * (theta_0[key]) + (new_alpha) * (theta_3[key])
 
-listener.stop()
+print("\nDone!")
+#listener.stop()
 save_model()
-
 

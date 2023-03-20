@@ -1,12 +1,10 @@
 from collections import defaultdict
+from re import L
 from typing import NamedTuple
-
-from jax import random
+import torch
 from scipy.optimize import linear_sum_assignment
-import torch 
+import time
 from random import shuffle
-
-from utils import rngmix
 
 rngmix = lambda rng, x: random.fold_in(rng, hash(x))
 
@@ -21,7 +19,6 @@ def permutation_spec_from_axes_to_perm(axes_to_perm: dict) -> PermutationSpec:
       if perm is not None:
         perm_to_axes[perm].append((wk, axis))
   return PermutationSpec(perm_to_axes=dict(perm_to_axes), axes_to_perm=axes_to_perm)
-
 
 def sdunet_permutation_spec() -> PermutationSpec:
   conv = lambda name, p_in, p_out: {f"{name}.weight": (p_out, p_in,), f"{name}.bias": (p_out,) }
@@ -74,6 +71,13 @@ def sdunet_permutation_spec() -> PermutationSpec:
      **skip("log_one_minus_alphas_cumprod", None, None),
      **skip("model_ema.decay", None, None),
      **skip("model_ema.num_updates", None, None),
+    #**skip("cond_stage_model.transformer.embeddings.position_ids", None, None),
+    #**skip("cond_stage_model.transformer.embeddings.token_embedding.weight", None, None),
+    #**skip("cond_stage_model.transformer.embeddings.position_embedding.weight", None, None),
+    #**skip("cond_stage_model.transformer.text_model.embeddings.position_embedding.weight", None, None),
+    # **skip("cond_stage_model.transformer.encoder.layers.0.self_attn.k_proj.weight", None, None),
+    #**skip("cond_stage_model.transformer.encoder.layers.0.self_attn.k_proj.bias", None, None),
+    # **skip("cond_stage_model.transformer.encoder.layers.0.self_attn.v_proj.weight
 
      #initial 
      **dense("model.diffusion_model.time_embed.0", None, "P_bg0", bias=True),
@@ -595,7 +599,6 @@ def sdunet_permutation_spec() -> PermutationSpec:
     
       })
 
-
 def get_permuted_param(ps: PermutationSpec, perm, k: str, params, except_axis=None):
   """Get parameter `k` from `params`, with the permutations applied."""
   w = params[k]
@@ -612,34 +615,15 @@ def get_permuted_param(ps: PermutationSpec, perm, k: str, params, except_axis=No
 
 def apply_permutation(ps: PermutationSpec, perm, params):
   """Apply a `perm` to `params`."""
-  permuted_params = {}
-  for k in params.keys():
-    permuted_key = ps.permutation[k]
-    if permuted_key not in permuted_params:
-      permuted_params[permuted_key] = get_permuted_param(ps, perm, k, params)
-    else:
-      permuted_params[permuted_key] = jax.tree_multimap(
-          lambda x, y: (1 - ps.alpha) * x + ps.alpha * y,
-          permuted_params[permuted_key], get_permuted_param(ps, perm, k, params)
-      )
-    if k == 'cond_stage_model.transformer.embeddings.position_ids':
-      print(f'Permuting key {k} to key {permuted_key}')
-  return permuted_params
+  return {k: get_permuted_param(ps, perm, k, params) for k in params.keys()}
 
-def weight_matching(rng,
-                    ps: PermutationSpec,
-                    params_a,
-                    params_b,
-                    usefp16=False,
-                    max_iter=1,
-                    init_perm=None,
-                    silent=False):
+def weight_matching(ps: PermutationSpec, params_a, params_b, max_iter=1, init_perm=None, usefp16=False, usedevice="cpu"):
   """Find a permutation of `params_b` to make them match `params_a`."""
+  special_layers = ["P_bg358", "P_bg324", "P_bg337"]
   perm_sizes = {p: params_a[axes[0][0]].shape[axes[0][1]] for p, axes in ps.perm_to_axes.items()}
   perm = dict()
   perm = {p: torch.arange(n) for p, n in perm_sizes.items()} if init_perm is None else init_perm
   perm_names = list(perm.keys())
-  special_layers = ["P_bg358", "P_bg324", "P_bg337"]
   sum = 0
   number = 0
   if usefp16:
@@ -667,11 +651,7 @@ def weight_matching(rng,
           if newL - oldL != 0:
               sum += abs((newL-oldL).item())
               number += 1
-              print(f"{p}: {newL - oldL}")
-          
-          if not silent: 
-            print(f"{p}: {newL - oldL}")
-          progress = progress or newL > oldL + 1e-12
+              print(f"\r\033[K > {p}: {newL - oldL}", end='')
 
           perm[p] = torch.Tensor(ci)
       if not progress:
@@ -705,15 +685,10 @@ def weight_matching(rng,
         if newL - oldL != 0:
             sum += abs((newL-oldL).item())
             number += 1
-            print(f"\r\033[K{p}: {newL - oldL}", end='')
-                
-        if not silent: 
-            print(f"\r\033[K{p}: {newL - oldL}", end='')
+            print(f"\r\033[K > {p}: {newL - oldL}", end='')
             
         progress = progress or newL > oldL + 1e-12
             
-        progress = progress or newL > oldL + 1e-12
-
         perm[p] = torch.Tensor(ci)
 
       if not progress:
@@ -723,7 +698,6 @@ def weight_matching(rng,
     else:
       average = 0
     return (perm, average)
-
 
 def test_weight_matching():
   """If we just have a single hidden layer then it should converge after just one step."""
