@@ -1032,7 +1032,11 @@ def weight_matching(ps: PermutationSpec, params_a, params_b, max_iter=1, init_pe
             w_b = torch.moveaxis(w_b, axis, 0).reshape((n, -1))
             A += w_a @ w_b.T
 
+          A = A.cpu()
           ri, ci = linear_sum_assignment(A.detach().numpy(), maximize=True)
+          if usedevice == "cuda":
+            A = A.cuda()
+            
           assert (torch.tensor(ri) == torch.arange(len(ri))).all()
 
           oldL = torch.vdot(torch.flatten(A), torch.flatten(torch.eye(n)[perm[p].long()]))
@@ -1066,7 +1070,11 @@ def weight_matching(ps: PermutationSpec, params_a, params_b, max_iter=1, init_pe
           w_b = torch.moveaxis(w_b, axis, 0).reshape((n, -1))
           A += w_a @ w_b.T
 
+        A = A.cpu()
         ri, ci = linear_sum_assignment(A.detach().numpy(), maximize=True)
+        if usedevice == "cuda":
+          A = A.cuda()
+
         assert (torch.tensor(ri) == torch.arange(len(ri))).all()
 
         oldL = torch.vdot(torch.flatten(A), torch.flatten(torch.eye(n)[perm[p].long()]))
