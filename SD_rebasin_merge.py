@@ -132,7 +132,7 @@ if args.device == "cuda":
     torch.set_default_tensor_type('torch.cuda.FloatTensor')
 
 # Load the models
-print(" > Loading models A into memory...")
+print(f" > Loading models A into memory...", end='\r')
 
 model_a = torch.load(args.model_a, map_location=map_location)
 if not 'state_dict' in model_a:
@@ -141,9 +141,12 @@ try:
     theta_0 = model_a["state_dict"]
 except:
     theta_0 = model_a
-print(f"\r\033[K > Model A state_dict is loaded", end='')
+print(f"\r\033[K > Model A state_dict is loaded", end='\n')
 
-print(" > Loading models B into memory...")
+# Delete the reference to model_a/b to free up memory
+del model_a
+
+print(f" > Loading models B into memory...", end='\r')
 model_b = torch.load(args.model_b, map_location=map_location)
 if not 'state_dict' in model_b:
     model_b = {'state_dict': model_b}
@@ -152,45 +155,56 @@ try:
 except:
     theta_1 = model_b
 
-print(f"\r\033[K > Model B state_dict is loaded", end='')
+# Delete the reference to model_b to free up memory
+del model_b
 
-# Delete missing keys from theta_0
-theta_0_del = {}
-for key, value in theta_0.items():
-    if key not in theta_1:
-        theta_0_del[key] = value
 
-for key in theta_0_del:
-    print(f" <== Key '{key}' from model B is missing in model A. Deleting it.")
-    del theta_0[key]
-    if key in theta_0.items():
-        printf(f"!!! ERROR: key '{key}' still in theta_0 !!!")
+print(f"\r\033[K > Model B state_dict is loaded", end='\n')
 
-theta_1_del = {}
-# Delete missing keys from theta_1
-for key, value in theta_1.items():
-    if key not in theta_0:
-        theta_1_del[key] = value
-
-for key in theta_1_del:
-    print(f" ==> Key '{key}' from model A is missing in model B. Deleting it.")
-    del theta_1[key]
-
-## Add missing keys from theta_0 to theta_1
+#deleted_keys = []
+#
 #for key, value in theta_0.items():
 #    if key not in theta_1:
 #        theta_1[key] = value
 #        print(f"Key '{key}' from theta_0 is missing in theta_1. Adding it.")
+#    else:
+#        # Key already exists in theta_1, so it was not deleted
+#        deleted_keys.append(key)
 #
-## Add missing keys from theta_1 to theta_0
 #for key, value in theta_1.items():
 #    if key not in theta_0:
-#        theta_0[key] = value
+#        theta_1[key] = value
 #        print(f"Key '{key}' from theta_1 is missing in theta_0. Adding it.")
+#    else:
+#        # Key already exists in theta_1, so it was not deleted
+#        deleted_keys.append(key)
 
-# Delete the reference to model_a/b to free up memory
-del model_b
-del model_a
+## Delete missing keys from theta_0 that are present in theta_1
+#for key in list(theta_0.keys()):
+#    if key not in theta_1:
+#        del theta_0[key]
+#        print(f"Key '{key}' from theta_0 is missing in theta_1. Deleting it.")
+#
+## Delete missing keys from theta_1 that are present in theta_0
+#for key in list(theta_1.keys()):
+#    if key not in theta_0:
+#        del theta_1[key]
+#        print(f"Key '{key}' from theta_1 is missing in theta_0. Deleting it.")
+
+
+# Add missing keys from theta_0 to theta_1
+for key, value in theta_0.items():
+    if key not in theta_1:
+        theta_1[key] = value
+        print(f"Key '{key}' from theta_0 is missing in theta_1. Adding it.")
+
+# Add missing keys from theta_1 to theta_0
+for key, value in theta_1.items():
+    if key not in theta_0:
+        theta_0[key] = value
+        print(f"Key '{key}' from theta_1 is missing in theta_0. Adding it.")
+
+
 
 theta_0 = {key: value for key, value in theta_0.items() if "model_ema" not in key}
 theta_1 = {key: value for key, value in theta_1.items() if "model_ema" not in key}

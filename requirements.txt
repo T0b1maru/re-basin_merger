@@ -2,3 +2,6 @@ safetensors
 pytorch-lightning 
 scippy
 pynput
+utils
+numpy
+gradio
