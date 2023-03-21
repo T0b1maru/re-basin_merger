@@ -1024,7 +1024,7 @@ def weight_matching(ps: PermutationSpec, params_a, params_b, max_iter=1, init_pe
         p = p_ix
         if p in special_layers:
           n = perm_sizes[p]
-          A = torch.zeros((n, n))
+          A = torch.zeros((n, n), dtype=torch.float16)
           for wk, axis in ps.perm_to_axes[p]:
             w_a = params_a[wk]
             w_b = get_permuted_param(ps, perm, wk, params_b, except_axis=axis)
