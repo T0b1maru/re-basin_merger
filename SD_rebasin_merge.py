@@ -104,19 +104,18 @@ def save_model ():
             args.model_a = args.model_a.split('.', 1)[0]
             args.model_b = args.model_b.rsplit('/', 1)[1]
             args.model_b = args.model_b.split('.', 1)[0]
-            output_file = "{}_{}_{}_{}-steps.ckpt".format(args.model_a, args.model_b, visible_alpha, args.iterations)
+            output_file = "{}_{}_{}_{}-steps.safetensors".format(args.model_a, args.model_b, visible_alpha, args.iterations)
         else:
-            output_file = f'{args.output}.ckpt'
+            output_file = f'{args.output}.safetensors'
     if os.name == 'nt':
         if args.output == "merged":
             args.model_a = args.model_a.rsplit('\\', 1)[1]
             args.model_a = args.model_a.split('.', 1)[0]
             args.model_b = args.model_b.rsplit('\\', 1)[1]
             args.model_b = args.model_b.split('.', 1)[0]
-            output_file = "{}_{}_{}_{}-steps.ckpt".format(args.model_a, args.model_b, visible_alpha, args.iterations)
+            output_file = "{}_{}_{}_{}-steps.safetensors".format(args.model_a, args.model_b, visible_alpha, args.iterations)
         else:
-            output_file = f'{args.output}.ckpt'
-        #output_file = 'merged_model.ckpt'
+            output_file = f'{args.output}.safetensors'
 
     # check if output file already exists, ask to overwrite
     if os.path.isfile(output_file):
@@ -134,11 +133,7 @@ def save_model ():
     print("\nSaving " + output_file + "...")
 
     #save as safetensors
-    save_file(theta_0, output_file)
-
-    torch.save({
-            "state_dict": theta_0
-                }, output_file)
+    save_file({"state_dict": theta_0}, output_file)
     print("Saved!\n")
 
 args.device == "True"
