@@ -33,7 +33,8 @@ iterations = int(args.iterations)
 step = alpha/iterations
 permutation_spec = sdunet_permutation_spec()
 
-special_keys = ["first_stage_model.decoder.norm_out.weight", "first_stage_model.decoder.norm_out.bias", "first_stage_model.encoder.norm_out.weight", "first_stage_model.encoder.norm_out.bias", "model.diffusion_model.out.0.weight", "model.diffusion_model.out.0.bias"]
+# set merge_option to "conv", "fc", or "all" depending on which layers you want to merge
+merge_type = "all"
 
 pause_flag = False
 continue_flag = False
@@ -133,7 +134,7 @@ def save_model ():
     print("\nSaving " + output_file + "...")
 
     #save as safetensors
-    save_file({"state_dict": theta_0}, output_file)
+    save_file(theta_0, output_file)
     print("Saved!\n")
 
 args.device == "True"
@@ -230,6 +231,28 @@ theta_1 = {key: value for key, value in theta_1.items() if "model_ema" not in ke
 
 #print("\nINFO: You can stop the loop and save the current iteration by pressing \"CTRL+p\"")
 
+# create the convolutional and fully connected layer lists
+if merge_type == "convolutional":
+    # Merge only convolutional layers
+    conv_layers = []
+    for key in theta_0.keys():
+        if key.startswith('conv'):
+            conv_layers.append(key)
+    for key in theta_1.keys():
+        if key not in conv_layers and key.startswith('conv'):
+            conv_layers.append(key)
+elif merge_type == "fully_connected":
+    # Merge only fully connected layers
+    fc_layers = []
+    for key in theta_0.keys():
+        if key.startswith('fc'):
+            fc_layers.append(key)
+
+    for key in theta_1.keys():
+        if key not in fc_layers and key.startswith('fc'):
+            fc_layers.append(key)
+
+
 for x in range(iterations):
     while pause_flag:
         # Display a prompt for y/n response
@@ -265,8 +288,23 @@ for x in range(iterations):
 
     # Weighted sum of the permutations
     
-    for key in special_keys:
-        theta_0[key] = (1 - new_alpha) * (theta_0[key]) + (new_alpha) * (theta_3[key])
+    #for key in special_keys:
+    #    theta_0[key] = (1 - new_alpha) * (theta_0[key]) + (new_alpha) * (theta_3[key])
+    if merge_type == "convolutional":
+        # Merge only convolutional layers
+        for key in conv_layers:
+            theta_0[key] = (1 - new_alpha) * (theta_0[key]) + (new_alpha) * (theta_3[key])
+    elif merge_type == "fully_connected":
+        # Merge only fully connected layers
+        for key in fc_layers:
+            theta_0[key] = (1 - new_alpha) * (theta_0[key]) + (new_alpha) * (theta_3[key])
+    elif merge_type == "all":
+        # Merge entire state_dict
+        all_layers = ["first_stage_model.decoder.norm_out.weight", "first_stage_model.decoder.norm_out.bias", "first_stage_model.encoder.norm_out.weight", "first_stage_model.encoder.norm_out.bias", "model.diffusion_model.out.0.weight", "model.diffusion_model.out.0.bias"]
+        for key in all_layers:
+            theta_0[key] = (1 - new_alpha) * (theta_0[key]) + (new_alpha) * (theta_3[key])
+
+
 
 print("\nDone!")
 #listener.stop()

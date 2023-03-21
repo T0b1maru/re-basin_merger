@@ -1029,6 +1029,8 @@ def weight_matching(ps: PermutationSpec,
   global skip_keys_1
   global skip_keys_2
   special_layers = ["P_bg358", "P_bg324", "P_bg337"]
+  conv_layers = ['conv1.weight', 'conv1.bias', 'conv2.weight', 'conv2.bias']
+  fc_layers = ['fc1.weight', 'fc1.bias', 'fc2.weight', 'fc2.bias']
   try:
     perm_sizes = {p: params_a[axes[0][0]].shape[axes[0][1]] for p, axes in ps.perm_to_axes.items()}
   except KeyError as e:
