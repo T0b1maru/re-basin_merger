@@ -1039,8 +1039,8 @@ def weight_matching(ps: PermutationSpec, params_a, params_b, max_iter=1, init_pe
             
           assert (torch.tensor(ri) == torch.arange(len(ri))).all()
 
-          oldL = torch.vdot(torch.flatten(A), torch.flatten(torch.eye(n)[perm[p].long()]))
-          newL = torch.vdot(torch.flatten(A), torch.flatten(torch.eye(n)[ci, :]))
+          oldL = torch.vdot(torch.flatten(A), torch.flatten(torch.eye(n)[perm[p].long()]).half())
+          newL = torch.vdot(torch.flatten(A), torch.flatten(torch.eye(n)[ci, :]).half())
 
           if newL - oldL != 0:
               sum += abs((newL-oldL).item())
