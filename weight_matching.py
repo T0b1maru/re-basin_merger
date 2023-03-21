@@ -1030,7 +1030,7 @@ def weight_matching(ps: PermutationSpec, params_a, params_b, max_iter=1, init_pe
             w_b = get_permuted_param(ps, perm, wk, params_b, except_axis=axis)
             w_a = torch.moveaxis(w_a, axis, 0).reshape((n, -1))
             w_b = torch.moveaxis(w_b, axis, 0).reshape((n, -1))
-            A += torch.matmul(w_a.half(), w_b.half())
+            A += w_a.to(torch.float16) @ w_b.T.to(torch.float16)
 
           A = A.cpu()
           ri, ci = linear_sum_assignment(A.detach().numpy(), maximize=True)
