@@ -66,7 +66,7 @@ def main(args):
             help = "output checkpoint"
     )
     parser.add_argument(
-            '-p', '--fp16',
+            '-p', '--usefp16',
             action = 'store_true',
             help = "convert to float16"
     )
@@ -105,7 +105,9 @@ def main(args):
     is_safetensors = os.path.splitext(args.input)[1].lower() == '.safetensors'
     if is_safetensors:
         from safetensors.torch import load_file, save_file
+        print(f" > Loading model...", end='\r')
         input_sd = load_file(args.input)
+
     else:
         from torch import load, save
         import pickle as python_pickle
@@ -116,20 +118,24 @@ def main(args):
                         return super().find_class(module, name)
                     except:
                         return None
+        print(f" > Loading model...", end='\r')
         input_sd = load(args.input, pickle_module = torch_pickle) # type: ignore
     pruned = prune(
             input_sd,
-            fp16 = args.fp16,
+            fp16 = args.usefp16,
             ema = args.ema,
             clip = not args.no_clip,
             vae = not args.no_vae,
             depth = not args.no_depth,
             unet = not args.no_unet
     )
+    print(f"\r\033[K > Model loaded", end='\n')
+    print(f" > Saving model...", end='\r')
     if is_safetensors:
         save_file(pruned, args.output)
     else:
         save(pruned, args.output)
+    print(f"\r\033[K > Model saved. Check the folder for a _pruned.ckpt version.", end='\n\n')
 
 
 if __name__ == '__main__':

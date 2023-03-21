@@ -18,7 +18,7 @@ with demo:
 
     with gr.Row():
         usefp16_box = gr.Checkbox(label="Use fp16", value=True)
-        cuda_box = gr.Checkbox(label="Cuda", value=False)
+        cuda_box = gr.Checkbox(label="GPU", value=False)
 
     with gr.Row():
         install_btn = gr.Button("install re-basin requirements")
@@ -47,17 +47,12 @@ with demo:
             rebasin_cmd = "python " + os.path.dirname(__file__) + "\\SD_rebasin_merge.py --model_a " + modelA + " --model_b " + modelB + " --output " + output +  str(usefp16_type) + " --alpha " + str(alpha) + " --iterations " + str(iterations) + " --device " + device_type
 
         return {
-            
             os.system(rebasin_cmd)
-
-            
-
-            #output_col: gr.update(visible=True),
-            #diagnosis_box: "covid" if "Cough" in symptoms else "flu",
-            #patient_summary_box: f"{name}, {age} y/o"
         }
-    def run_prune(output):
-        prune_cmd = "python " + os.path.dirname(__file__) + "/prune.py " + output + ".ckpt " + output + "_pruned.ckpt"
+
+    def run_prune(output, usefp16):
+        usefp16_type = " --usefp16 " if usefp16 else ""
+        prune_cmd = "python " + os.path.dirname(__file__) + "/prune.py " + str(usefp16_type) + output + ".ckpt " + output + "_pruned.ckpt" 
 
         return {
             os.system(prune_cmd)
@@ -74,7 +69,7 @@ with demo:
         }
 
     run_btn.click(run_rebasin,[modelA_box, modelB_box, output_box, iterations_box, alpha_box, usefp16_box, cuda_box])
-    prune_btn.click(run_prune,[output_box])
+    prune_btn.click(run_prune,[output_box, usefp16_box])
     install_btn.click(install)
 
 
