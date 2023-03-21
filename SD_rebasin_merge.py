@@ -7,8 +7,10 @@ import signal
 import platform
 
 from safetensors.torch import save_file
+from safetensors import safe_open
 from weight_matching import sdunet_permutation_spec, weight_matching, apply_permutation
 from pynput import keyboard
+
 
 parser = argparse.ArgumentParser(description= "Merge two stable diffusion models with git re-basin")
 parser.add_argument("--model_a", type=str, help="Path to model a")
@@ -51,17 +53,17 @@ if args.device == "cuda":
 else:
     print(" - using CPU/RAM\n")
 
-# Define signal handler for SIGTERM
-def signal_handler(sig, frame):
-    # Release any resources in use
-    # Close any open files, sockets, or database connections
-    # Clean up any other state the script may have
-
-    # Exit the script
-    exit(0)
-
-# Register the signal handler for SIGTERM
-signal.signal(signal.SIGTERM, signal_handler)
+def safetensors_load(ckpt, map_location="cpu"):
+    extension = os.path.splitext(ckpt)[1]
+    if extension == ".ckpt":
+        state_dict = torch.load(ckpt, map_location=map_location)
+        return {'state_dict': state_dict}
+    else:
+        sd = {}
+        with safe_open(ckpt, framework="pt", device=map_location) as f:
+            for key in f.keys():
+                sd[key] = f.get_tensor(key)
+        return {'state_dict': sd}
 
 def on_press(key):
     global pause_flag, continue_flag
@@ -78,6 +80,18 @@ def on_press(key):
     elif pause_flag and key == keyboard.KeyCode.from_char('y'):
         save_model()
         os.kill(pid, signal.SIGTERM)
+
+# Define signal handler for SIGTERM
+def signal_handler(sig, frame):
+    # Release any resources in use
+    # Close any open files, sockets, or database connections
+    # Clean up any other state the script may have
+
+    # Exit the script
+    exit(0)
+
+# Register the signal handler for SIGTERM
+signal.signal(signal.SIGTERM, signal_handler)
 
 ## Set up listener for keyboard events
 #listener = keyboard.Listener(on_press=on_press)
@@ -134,7 +148,7 @@ if args.device == "cuda":
 # Load the models
 print(f" > Loading models A into memory...", end='\r')
 
-model_a = torch.load(args.model_a, map_location=map_location)
+model_a = safetensors_load(args.model_a, map_location=map_location)
 if not 'state_dict' in model_a:
     model_a = {'state_dict': model_a}
 try:
@@ -147,7 +161,7 @@ print(f"\r\033[K > Model A state_dict is loaded", end='\n')
 del model_a
 
 print(f" > Loading models B into memory...", end='\r')
-model_b = torch.load(args.model_b, map_location=map_location)
+model_b = safetensors_load(args.model_b, map_location=map_location)
 if not 'state_dict' in model_b:
     model_b = {'state_dict': model_b}
 try:
@@ -248,9 +262,9 @@ for x in range(iterations):
     print("FINDING PERMUTATIONS")
 
     # Replace theta_0 with a permutated version using model A and B    
-    first_permutation, y = weight_matching(permutation_spec, theta_0, theta_0, usefp16=args.usefp16, usedevice=args.device)
+    first_permutation, y = weight_matching(permutation_spec, theta_0, theta_0, x, usefp16=args.usefp16, usedevice=args.device, first=True)
     theta_0 = apply_permutation(permutation_spec, first_permutation, theta_0)
-    second_permutation, z = weight_matching(permutation_spec, theta_1, theta_0, usefp16=args.usefp16, usedevice=args.device)
+    second_permutation, z = weight_matching(permutation_spec, theta_1, theta_0, x, usefp16=args.usefp16, usedevice=args.device, first=False)
     theta_3= apply_permutation(permutation_spec, second_permutation, theta_0)
     new_alpha = torch.nn.functional.normalize(torch.sigmoid(torch.Tensor([y, z])), p=1, dim=0).tolist()[0]
 

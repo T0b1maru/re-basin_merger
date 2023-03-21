@@ -991,15 +991,21 @@ def sdunet_permutation_spec() -> PermutationSpec:
 
 def get_permuted_param(ps: PermutationSpec, perm, k: str, params, except_axis=None):
   """Get parameter `k` from `params`, with the permutations applied."""
-  w = params[k]
-  for axis, p in enumerate(ps.axes_to_perm[k]):
+  w = params.get(k, None)
+  if w is None:
+    return None
+
+  for axis, p in enumerate(ps.axes_to_perm.get(k, [])):
     # Skip the axis we're trying to permute.
     if axis == except_axis:
       continue
 
     # None indicates that there is no permutation relevant to that axis.
     if p is not None:
-      w = torch.index_select(w, axis, perm[p].int())
+      try:
+        w = torch.index_select(w, axis, perm[p].int())
+      except KeyError:
+        continue
 
   return w
 
@@ -1007,15 +1013,38 @@ def apply_permutation(ps: PermutationSpec, perm, params):
   """Apply a `perm` to `params`."""
   return {k: get_permuted_param(ps, perm, k, params) for k in params.keys()}
 
-def weight_matching(ps: PermutationSpec, params_a, params_b, max_iter=1, init_perm=None, usefp16=False, usedevice="cpu"):
+skip_keys_1 = []
+skip_keys_2 = []
+
+def weight_matching(ps: PermutationSpec,
+                     params_a,
+                     params_b,
+                     main_iteration,
+                     max_iter=1,
+                     init_perm=None,
+                     usefp16=False,
+                     usedevice="cpu",
+                     first=True):
   """Find a permutation of `params_b` to make them match `params_a`."""
+  global skip_keys_1
+  global skip_keys_2
   special_layers = ["P_bg358", "P_bg324", "P_bg337"]
-  perm_sizes = {p: params_a[axes[0][0]].shape[axes[0][1]] for p, axes in ps.perm_to_axes.items()}
+  try:
+    perm_sizes = {p: params_a[axes[0][0]].shape[axes[0][1]] for p, axes in ps.perm_to_axes.items()}
+  except KeyError as e:
+    print(f"ERROR: {str(e)}")
+    
   perm = dict()
   perm = {p: torch.arange(n) for p, n in perm_sizes.items()} if init_perm is None else init_perm
   perm_names = list(perm.keys())
   sum = 0
   number = 0
+
+  if len(skip_keys_1) > 0 and first:
+    print(f"\nSkipping {len(skip_keys_1)}/{len(torch.randperm(len(perm_names)))} keys for first permutation\n")
+  if len(skip_keys_2) > 0 and not first:
+    print(f"\nSkipping {len(skip_keys_2)}/{len(torch.randperm(len(perm_names)))} keys for second permutation\n")
+
   if usefp16:
     for iteration in range(max_iter):
       progress = False
@@ -1036,7 +1065,7 @@ def weight_matching(ps: PermutationSpec, params_a, params_b, max_iter=1, init_pe
           ri, ci = linear_sum_assignment(A.detach().numpy(), maximize=True)
           if usedevice == "cuda":
             A = A.cuda()
-            
+
           assert (torch.tensor(ri) == torch.arange(len(ri))).all()
 
           oldL = torch.vdot(torch.flatten(A), torch.flatten(torch.eye(n)[perm[p].long()]).half())
@@ -1060,34 +1089,49 @@ def weight_matching(ps: PermutationSpec, params_a, params_b, max_iter=1, init_pe
       progress = False
       
       for p_ix in torch.randperm(len(perm_names)):
+
         p = perm_names[p_ix]
         n = perm_sizes[p]
         A = torch.zeros((n, n))
-        for wk, axis in ps.perm_to_axes[p]:
-          w_a = params_a[wk]
-          w_b = get_permuted_param(ps, perm, wk, params_b, except_axis=axis)
-          w_a = torch.moveaxis(w_a, axis, 0).reshape((n, -1))
-          w_b = torch.moveaxis(w_b, axis, 0).reshape((n, -1))
-          A += w_a @ w_b.T
 
-        A = A.cpu()
-        ri, ci = linear_sum_assignment(A.detach().numpy(), maximize=True)
-        if usedevice == "cuda":
-          A = A.cuda()
+        if main_iteration >= 1 and p in skip_keys_1 and first:
+          continue
+        if main_iteration >= 1 and p in skip_keys_2 and not first:
+          continue
+        else:
+          for wk, axis in ps.perm_to_axes[p]:
+            w_a = params_a[wk]
+            w_b = get_permuted_param(ps, perm, wk, params_b, except_axis=axis)
+            w_a = torch.moveaxis(w_a, axis, 0).reshape((n, -1))
+            w_b = torch.moveaxis(w_b, axis, 0).reshape((n, -1))
+            A += w_a @ w_b.T
 
-        assert (torch.tensor(ri) == torch.arange(len(ri))).all()
+          A = A.cpu()
+          ri, ci = linear_sum_assignment(A.detach().numpy(), maximize=True)
+          if usedevice == "cuda":
+            A = A.cuda()
 
-        oldL = torch.vdot(torch.flatten(A), torch.flatten(torch.eye(n)[perm[p].long()]))
-        newL = torch.vdot(torch.flatten(A), torch.flatten(torch.eye(n)[ci, :]))
+          assert (torch.tensor(ri) == torch.arange(len(ri))).all()
 
-        if newL - oldL != 0:
+          oldL = torch.vdot(torch.flatten(A), torch.flatten(torch.eye(n)[perm[p].long()]))
+          newL = torch.vdot(torch.flatten(A), torch.flatten(torch.eye(n)[ci, :]))
+
+          if newL - oldL != 0 and first:
             sum += abs((newL-oldL).item())
             number += 1
-            print(f"\r\033[K > {iteration} - {p}: {newL - oldL}", end='')
-            
-        progress = progress or newL > oldL + 1e-12
-            
-        perm[p] = torch.Tensor(ci)
+            print(f"\033[2K\r > Skipped keys for first permutation: {len(skip_keys_1)}/{len(torch.randperm(len(perm_names)))}\n > {p}: {newL - oldL}", end='')
+          if newL - oldL != 0 and not first:
+            sum += abs((newL-oldL).item())
+            number += 1
+            print(f"\033[2K\r > Skipped keys for second permutation: {len(skip_keys_2)}/{len(torch.randperm(len(perm_names)))}\n > {p}: {newL - oldL}", end='')
+          if newL - oldL == 0 and first:
+            skip_keys_1.append(p)
+          if newL - oldL == 0  and not first:
+            skip_keys_2.append(p)
+
+          progress = progress or newL > oldL + 1e-12
+              
+          perm[p] = torch.Tensor(ci)
 
       if not progress:
         break
