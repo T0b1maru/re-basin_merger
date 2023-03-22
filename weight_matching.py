@@ -5,6 +5,7 @@ import torch
 from scipy.optimize import linear_sum_assignment
 import time
 from random import shuffle
+from tqdm import tqdm
 
 rngmix = lambda rng, x: random.fold_in(rng, hash(x))
 
@@ -1012,8 +1013,6 @@ def apply_permutation(ps: PermutationSpec, perm, params):
   """Apply a `perm` to `params`."""
   return {k: get_permuted_param(ps, perm, k, params) for k in params.keys()}
 
-skip_keys_1 = []
-skip_keys_2 = []
 
 def weight_matching(ps: PermutationSpec,
                      params_a,
@@ -1023,13 +1022,12 @@ def weight_matching(ps: PermutationSpec,
                      init_perm=None,
                      usefp16=False,
                      usedevice="cpu",
-                     first=True):
+                     first=True,
+                     fast=True):
   """Find a permutation of `params_b` to make them match `params_a`."""
-  global skip_keys_1
-  global skip_keys_2
+
   special_layers = ["P_bg358", "P_bg324", "P_bg337"]
-  conv_layers = ['conv1.weight', 'conv1.bias', 'conv2.weight', 'conv2.bias']
-  fc_layers = ['fc1.weight', 'fc1.bias', 'fc2.weight', 'fc2.bias']
+
   #try:
   #  perm_sizes = {p: params_a[axes[0][0]].shape[axes[0][1]] for p, axes in ps.perm_to_axes.items()}
   #except KeyError as e:
@@ -1042,12 +1040,10 @@ def weight_matching(ps: PermutationSpec,
   sum = 0
   number = 0
 
-  #if len(skip_keys_1) > 0 and first:
-  #  print(f"\nSkipping {len(skip_keys_1)}/{len(torch.randperm(len(perm_names)))} keys for first permutation\n")
-  #if len(skip_keys_2) > 0 and not first:
-  #  print(f"\nSkipping {len(skip_keys_2)}/{len(torch.randperm(len(perm_names)))} keys for second permutation\n")
+  if not first:
+    print("Second permutation")
 
-  if usefp16:
+  if fast:
     for iteration in range(max_iter):
       progress = False
       shuffle(special_layers)
@@ -1055,13 +1051,19 @@ def weight_matching(ps: PermutationSpec,
         p = p_ix
         if p in special_layers:
           n = perm_sizes[p]
-          A = torch.zeros((n, n), dtype=torch.float16)
+          if usefp16:
+            A = torch.zeros((n, n), dtype=torch.float16)
+          else:
+            A = torch.zeros((n, n))
           for wk, axis in ps.perm_to_axes[p]:
             w_a = params_a[wk]
             w_b = get_permuted_param(ps, perm, wk, params_b, except_axis=axis)
             w_a = torch.moveaxis(w_a, axis, 0).reshape((n, -1))
             w_b = torch.moveaxis(w_b, axis, 0).reshape((n, -1))
-            A += w_a.to(torch.float16) @ w_b.T.to(torch.float16)
+            if usefp16:
+              A += w_a.to(torch.float16) @ w_b.T.to(torch.float16)
+            else:
+              A += w_a @ w_b.T
 
           A = A.cpu()
           ri, ci = linear_sum_assignment(A.detach().numpy(), maximize=True)
@@ -1070,13 +1072,18 @@ def weight_matching(ps: PermutationSpec,
 
           assert (torch.tensor(ri) == torch.arange(len(ri))).all()
 
-          oldL = torch.vdot(torch.flatten(A), torch.flatten(torch.eye(n)[perm[p].long()]).half())
-          newL = torch.vdot(torch.flatten(A), torch.flatten(torch.eye(n)[ci, :]).half())
+          if usefp16:
+            oldL = torch.vdot(torch.flatten(A), torch.flatten(torch.eye(n)[perm[p].long()]).half())
+            newL = torch.vdot(torch.flatten(A), torch.flatten(torch.eye(n)[ci, :]).half())
+          else:
+            oldL = torch.vdot(torch.flatten(A), torch.flatten(torch.eye(n)[perm[p].long()]))
+            newL = torch.vdot(torch.flatten(A), torch.flatten(torch.eye(n)[ci, :]))
 
           if newL - oldL != 0:
-              sum += abs((newL-oldL).item())
-              number += 1
-              print(f"\r\033[K > {p}: {newL - oldL}", end='')
+            sum += abs((newL-oldL).item())
+            number += 1
+            #print(f"\r\033[K > {p}: {newL - oldL}", end='')
+            print(f"> {p}: {newL - oldL}")
 
           perm[p] = torch.Tensor(ci)
       if not progress:
@@ -1090,23 +1097,23 @@ def weight_matching(ps: PermutationSpec,
     for iteration in range(max_iter):
       progress = False
       
-      for p_ix in torch.randperm(len(perm_names)):
-
+      for i, p_ix in enumerate(torch.randperm(len(perm_names))):
         p = perm_names[p_ix]
         n = perm_sizes[p]
-        A = torch.zeros((n, n))
+        if usefp16:
+          A = torch.zeros((n, n), dtype=torch.float16)
+        else:
+          A = torch.zeros((n, n))
 
-        #if main_iteration >= 1 and p in skip_keys_1 and first:
-        #  continue
-        #if main_iteration >= 1 and p in skip_keys_2 and not first:
-        #  continue
-        #else:
         for wk, axis in ps.perm_to_axes[p]:
           w_a = params_a[wk]
           w_b = get_permuted_param(ps, perm, wk, params_b, except_axis=axis)
           w_a = torch.moveaxis(w_a, axis, 0).reshape((n, -1))
           w_b = torch.moveaxis(w_b, axis, 0).reshape((n, -1))
-          A += w_a @ w_b.T
+          if usefp16:
+            A += w_a.to(torch.float16) @ w_b.T.to(torch.float16)
+          else:
+            A += w_a @ w_b.T
 
         A = A.cpu()
         ri, ci = linear_sum_assignment(A.detach().numpy(), maximize=True)
@@ -1115,25 +1122,18 @@ def weight_matching(ps: PermutationSpec,
 
         assert (torch.tensor(ri) == torch.arange(len(ri))).all()
 
-        oldL = torch.vdot(torch.flatten(A), torch.flatten(torch.eye(n)[perm[p].long()]))
-        newL = torch.vdot(torch.flatten(A), torch.flatten(torch.eye(n)[ci, :]))
+        if usefp16:
+          oldL = torch.vdot(torch.flatten(A), torch.flatten(torch.eye(n)[perm[p].long()]).half())
+          newL = torch.vdot(torch.flatten(A), torch.flatten(torch.eye(n)[ci, :]).half())
+        else:
+          oldL = torch.vdot(torch.flatten(A), torch.flatten(torch.eye(n)[perm[p].long()]))
+          newL = torch.vdot(torch.flatten(A), torch.flatten(torch.eye(n)[ci, :]))
 
-        #if newL - oldL != 0 and first:
-        #  sum += abs((newL-oldL).item())
-        #  number += 1
-        #  print(f"\033[2K\r > Skipped keys for first permutation: {len(skip_keys_1)}/{len(torch.randperm(len(perm_names)))}\n > {p}: {newL - oldL}", end='')
-        #if newL - oldL != 0 and not first:
-        #  sum += abs((newL-oldL).item())
-        #  number += 1
-        #  print(f"\033[2K\r > Skipped keys for second permutation: {len(skip_keys_2)}/{len(torch.randperm(len(perm_names)))}\n > {p}: {newL - oldL}", end='')
-        #if newL - oldL == 0 and first:
-        #  skip_keys_1.append(p)
-        #if newL - oldL == 0  and not first:
-        #  skip_keys_2.append(p)
         if newL - oldL != 0:
           sum += abs((newL-oldL).item())
           number += 1
-          print(f"\r\033[K > {p}: {newL - oldL}", end='')
+          #print(f"\r\033[K > {p}: {newL - oldL}", end='')
+          print(f" > {p}: {newL - oldL}")
 
         progress = progress or newL > oldL + 1e-12
             
@@ -1146,6 +1146,7 @@ def weight_matching(ps: PermutationSpec,
     else:
       average = 0
     return (perm, average)
+
 
 def test_weight_matching():
   """If we just have a single hidden layer then it should converge after just one step."""

@@ -19,6 +19,7 @@ with demo:
     with gr.Row():
         usefp16_box = gr.Checkbox(label="Use fp16", value=True)
         cuda_box = gr.Checkbox(label="GPU", value=False)
+        fast_box = gr.Checkbox(label="Fast", value=True)
 
     with gr.Row():
         merge_layers_radio = gr.Radio(["All", "Convolutional layers", "Fully connected layers"], label="Layers to be merged", value="All", interactive=True)
@@ -34,7 +35,7 @@ with demo:
         diagnosis_box = gr.Textbox(label="Diagnosis")
         patient_summary_box = gr.Textbox(label="Patient Summary")
 
-    def run_rebasin(modelA, modelB, output, iterations, alpha, usefp16, device, merge_layers):
+    def run_rebasin(modelA, modelB, output, iterations, alpha, usefp16, device, merge_layers, fast):
         if len(modelA) == 0:
             return {error_box: gr.update(value="Enter path to model A", visible=True)}
         if len(modelB) == 0:
@@ -42,6 +43,8 @@ with demo:
 
         device_type = "cuda" if device else "cpu"
         usefp16_type = " --usefp16 " if usefp16 else ""
+        go_fast = " --fast " if fast else ""
+        
         if merge_layers == "All":
             layers = "all"
         elif merge_layers == "Convolutional layers":
@@ -54,7 +57,7 @@ with demo:
         if os.name == 'posix':
             rebasin_cmd = "python " + os.path.dirname(__file__) + "/SD_rebasin_merge.py --model_a \"" + modelA + "\" --model_b \"" + modelB + "\"  --layers " + layers + " --output " + output +  str(usefp16_type) + " --alpha " + str(alpha) + " --iterations " + str(iterations) + " --device " + device_type
         if os.name == 'nt': 
-            rebasin_cmd = "python " + os.path.dirname(__file__) + "\\SD_rebasin_merge.py --model_a \"" + modelA + "\" --model_b \"" + modelB + "\"  --layers " + layers + " --output " + output +  str(usefp16_type) + " --alpha " + str(alpha) + " --iterations " + str(iterations) + " --device " + device_type
+            rebasin_cmd = "python " + os.path.dirname(__file__) + "\\SD_rebasin_merge.py --model_a \"" + modelA + "\" --model_b \"" + modelB + "\"  --layers " + layers + " --output " + output +  str(usefp16_type) + " " +  str(go_fast) + " --alpha " + str(alpha) + " --iterations " + str(iterations) + " --device " + device_type
 
         return {
             os.system(rebasin_cmd)
@@ -78,7 +81,7 @@ with demo:
             "done"
         }
 
-    run_btn.click(run_rebasin,[modelA_box, modelB_box, output_box, iterations_box, alpha_box, usefp16_box, cuda_box, merge_layers_radio])
+    run_btn.click(run_rebasin,[modelA_box, modelB_box, output_box, iterations_box, alpha_box, usefp16_box, cuda_box, merge_layers_radio, fast_box])
     prune_btn.click(run_prune,[output_box, usefp16_box])
     install_btn.click(install)
 

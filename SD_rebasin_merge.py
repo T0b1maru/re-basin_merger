@@ -21,6 +21,7 @@ parser.add_argument("--usefp16", help="Whether to use half precision", action='s
 parser.add_argument("--alpha", type=str, help="Ratio of model A to B", default="0.5", required=False)
 parser.add_argument("--iterations", type=str, help="Number of steps to take before reaching alpha", default="10", required=False)
 parser.add_argument("--layers", type=str, help="Which layers to merge. all, convolutional or fully_connected", default="all", required=False)
+parser.add_argument("--fast", help="Whether top skip certain layers that are mostly unused", action='store_true', default=True, required=False)
 
 args = parser.parse_args() 
 merge_type = args.layers
@@ -32,8 +33,6 @@ extension_a = os.path.splitext(args.model_a)
 iterations = int(args.iterations)
 step = alpha/iterations
 permutation_spec = sdunet_permutation_spec()
-
-# set merge_option to "conv", "fc", or "all" depending on which layers you want to merge
 
 pause_flag = False
 continue_flag = False
@@ -52,6 +51,11 @@ if args.usefp16:
     print(" - Using half precision")
 else:
     print(" - Using full precision")
+
+if args.fast:
+    print(" - Running fast")
+else:
+    print(" - Running normal speed")
 
 print(f" - Merging {merge_type} layers\n\n")
 
@@ -246,12 +250,12 @@ for x in range(iterations):
         new_alpha = step
     print(f"new alpha = {new_alpha}\n")
 
-    print("FINDING PERMUTATIONS")
+    print("FINDING PERMUTATIONS\n")
 
     # Replace theta_0 with a permutated version using model A and B    
-    first_permutation, y = weight_matching(permutation_spec, theta_0_reference, theta_0, x, usefp16=args.usefp16, usedevice=args.device, first=True)
+    first_permutation, y = weight_matching(permutation_spec, theta_0_reference, theta_0, x, usefp16=args.usefp16, usedevice=args.device, first=True, fast=args.fast)
     theta_0 = apply_permutation(permutation_spec, first_permutation, theta_0)
-    second_permutation, z = weight_matching(permutation_spec, theta_1, theta_0, x, usefp16=args.usefp16, usedevice=args.device, first=False)
+    second_permutation, z = weight_matching(permutation_spec, theta_1, theta_0, x, usefp16=args.usefp16, usedevice=args.device, first=False, fast=args.fast)
     theta_3= apply_permutation(permutation_spec, second_permutation, theta_0)
     new_alpha = torch.nn.functional.normalize(torch.sigmoid(torch.Tensor([y, z])), p=1, dim=0).tolist()[0]
 
