@@ -5,6 +5,7 @@ import safetensors.torch
 import torch.nn as nn
 import signal
 import platform
+import sys
 
 from safetensors.torch import save_file
 from safetensors import safe_open
@@ -25,8 +26,7 @@ args = parser.parse_args()
 map_location = args.device
 pid = os.getpid()
 
-visible_alpha = (1.0 - float(args.alpha))
-alpha = float(args.alpha)
+alpha = (1.0 - float(args.alpha))
 extension_a = os.path.splitext(args.model_a)
 
 iterations = int(args.iterations)
@@ -66,37 +66,12 @@ def safetensors_load(ckpt, map_location="cpu"):
                 sd[key] = f.get_tensor(key)
         return {'state_dict': sd}
 
-def on_press(key):
-    global pause_flag, continue_flag
-
-    if key in pause_key and not pause_flag:
-        current_key.add(key)
-        if all(k in current_key for k in pause_key):
-            print('Ctrl + p is pressed, please wait while this iteration finishes.\n')
-            pause_flag = True  # Toggle pause flag
-    elif pause_flag and key == keyboard.KeyCode.from_char('n'):
-        pause_flag = False
-        continue_flag = True  # Set continue flag
-        print('Continuing loop...\n')
-    elif pause_flag and key == keyboard.KeyCode.from_char('y'):
-        save_model()
-        os.kill(pid, signal.SIGTERM)
-
-# Define signal handler for SIGTERM
-def signal_handler(sig, frame):
-    # Release any resources in use
-    # Close any open files, sockets, or database connections
-    # Clean up any other state the script may have
-
-    # Exit the script
-    exit(0)
-
-# Register the signal handler for SIGTERM
-signal.signal(signal.SIGTERM, signal_handler)
-
-## Set up listener for keyboard events
-#listener = keyboard.Listener(on_press=on_press)
-#listener.start()
+def flatten_params(model):
+    try:
+        sd_ld = model['state_dict']
+    except:
+        sd_ld = model
+    return sd_ld
 
 def save_model ():
     if os.name == 'posix':
@@ -130,16 +105,49 @@ def save_model ():
                 os.kill(pid, signal.SIGTERM)
             else:
                 print("\nPlease enter y or n")
-
     print("\nSaving " + output_file + "...")
-
     #save as safetensors
-    save_file(theta_0, output_file)
+    torch.save({"state_dict": theta_0}, output_file)
     print("Saved!\n")
+
+def on_press(key):
+    global pause_flag, continue_flag
+
+    if key in pause_key and not pause_flag:
+        current_key.add(key)
+        if all(k in current_key for k in pause_key):
+            print('Ctrl + p is pressed, please wait while this iteration finishes.\n')
+            pause_flag = True  # Toggle pause flag
+    elif pause_flag and key == keyboard.KeyCode.from_char('n'):
+        pause_flag = False
+        continue_flag = True  # Set continue flag
+        print('Continuing loop...\n')
+    elif pause_flag and key == keyboard.KeyCode.from_char('y'):
+        save_model()
+        os.kill(pid, signal.SIGTERM)
+
+# Define signal handler for SIGTERM
+def signal_handler(sig, frame):
+    # Release any resources in use
+    # Close any open files, sockets, or database connections
+    # Clean up any other state the script may have
+
+    # Exit the script
+    exit(0)
+
+# Register the signal handler for SIGTERM
+signal.signal(signal.SIGTERM, signal_handler)
+
+## Set up listener for keyboard events
+#listener = keyboard.Listener(on_press=on_press)
+#listener.start()
 
 args.device == "True"
 if args.device == "cuda":
     torch.set_default_tensor_type('torch.cuda.FloatTensor')
+
+###############
+
 
 # Load the models
 print(f" > Loading models A into memory...", end='\r')
@@ -167,40 +175,28 @@ except:
 
 # Delete the reference to model_b to free up memory
 del model_b
-
-
 print(f"\r\033[K > Model B state_dict is loaded", end='\n')
 
-#deleted_keys = []
-#
-#for key, value in theta_0.items():
-#    if key not in theta_1:
-#        theta_1[key] = value
-#        print(f"Key '{key}' from theta_0 is missing in theta_1. Adding it.")
-#    else:
-#        # Key already exists in theta_1, so it was not deleted
-#        deleted_keys.append(key)
-#
-#for key, value in theta_1.items():
-#    if key not in theta_0:
-#        theta_1[key] = value
-#        print(f"Key '{key}' from theta_1 is missing in theta_0. Adding it.")
-#    else:
-#        # Key already exists in theta_1, so it was not deleted
-#        deleted_keys.append(key)
+print(f" > Loading an extra reference of model A's state_dict into memory...", end='\n')
+theta_0_reference = theta_0.copy()
 
-## Delete missing keys from theta_0 that are present in theta_1
-#for key in list(theta_0.keys()):
-#    if key not in theta_1:
-#        del theta_0[key]
-#        print(f"Key '{key}' from theta_0 is missing in theta_1. Deleting it.")
-#
-## Delete missing keys from theta_1 that are present in theta_0
-#for key in list(theta_1.keys()):
-#    if key not in theta_0:
-#        del theta_1[key]
-#        print(f"Key '{key}' from theta_1 is missing in theta_0. Deleting it.")
+# Get the size of theta_0
+size_theta_0 = sys.getsizeof(theta_0)
+size_theta_1 = sys.getsizeof(theta_1)
+size_theta_0_reference = sys.getsizeof(theta_0_reference)
 
+# Convert size to MB
+size_theta_0_mb = size_theta_0 / (1024 * 1024)
+size_theta_1_mb = size_theta_1 / (1024 * 1024)
+size_theta_0_reference_mb = size_theta_0_reference / (1024 * 1024)
+
+# Print the size of theta_0 in MB to the console
+print(f"Size of theta_0: {size_theta_0_mb:.2f} MB")
+print(f"Size of theta_1: {size_theta_1_mb:.2f} MB")
+print(f"Size of theta_0_reference: {size_theta_0_reference_mb:.2f} MB")
+
+
+##############
 
 # Add missing keys from theta_0 to theta_1
 for key, value in theta_0.items():
@@ -214,20 +210,8 @@ for key, value in theta_1.items():
         theta_0[key] = value
         print(f"Key '{key}' from theta_1 is missing in theta_0. Adding it.")
 
-
-
 theta_0 = {key: value for key, value in theta_0.items() if "model_ema" not in key}
 theta_1 = {key: value for key, value in theta_1.items() if "model_ema" not in key}
-
-#for key in theta_0.keys():
-#    if 'cond_stage_model.' in key:
-#        if not key in theta_1:
-#            theta_1[key] = theta_0[key].clone().detach()
-#            
-#for key in theta_1.keys():
-#    if 'cond_stage_model.' in key:
-#        if not key in theta_0:
-#            theta_0[key] = theta_1[key].clone().detach()
 
 #print("\nINFO: You can stop the loop and save the current iteration by pressing \"CTRL+p\"")
 
@@ -252,7 +236,6 @@ elif merge_type == "fully_connected":
         if key not in fc_layers and key.startswith('fc'):
             fc_layers.append(key)
 
-
 for x in range(iterations):
     while pause_flag:
         # Display a prompt for y/n response
@@ -274,13 +257,13 @@ for x in range(iterations):
         new_alpha = 1 - (1 - step*(1+x)) / (1 - step*(x))
     else:
         new_alpha = step
-    print(f" - New merged alpha = {(1.0 - float(new_alpha))}\n")
+    print(f"new alpha = {new_alpha}\n")
     
 
     print("FINDING PERMUTATIONS")
 
     # Replace theta_0 with a permutated version using model A and B    
-    first_permutation, y = weight_matching(permutation_spec, theta_0, theta_0, x, usefp16=args.usefp16, usedevice=args.device, first=True)
+    first_permutation, y = weight_matching(permutation_spec, theta_0_reference, theta_0, x, usefp16=args.usefp16, usedevice=args.device, first=True)
     theta_0 = apply_permutation(permutation_spec, first_permutation, theta_0)
     second_permutation, z = weight_matching(permutation_spec, theta_1, theta_0, x, usefp16=args.usefp16, usedevice=args.device, first=False)
     theta_3= apply_permutation(permutation_spec, second_permutation, theta_0)

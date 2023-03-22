@@ -74,7 +74,6 @@ def sdunet_permutation_spec() -> PermutationSpec:
      **skip("cond_stage_model.transformer.embeddings.position_ids", None, None),
      **skip("cond_stage_model.transformer.embeddings.token_embedding.weight", None, None),
      **skip("cond_stage_model.transformer.embeddings.position_embedding.weight", None, None),
-     **skip("cond_stage_model.transformer.text_model.embeddings.position_embedding.weight", None, None),
      **skip("cond_stage_model.transformer.encoder.layers.0.self_attn.k_proj.weight", None, None),
      **skip("cond_stage_model.transformer.encoder.layers.0.self_attn.k_proj.bias", None, None),
      **skip("cond_stage_model.transformer.encoder.layers.0.self_attn.v_proj.weight", None, None),
@@ -986,7 +985,6 @@ def sdunet_permutation_spec() -> PermutationSpec:
      **norm("cond_stage_model.transformer.text_model.encoder.layers.11.layer_norm2", "P_bg407"),
      
      **norm("cond_stage_model.transformer.text_model.final_layer_norm", "P_bg407")
-    
       })
 
 def get_permuted_param(ps: PermutationSpec, perm, k: str, params, except_axis=None):
@@ -1005,6 +1003,7 @@ def get_permuted_param(ps: PermutationSpec, perm, k: str, params, except_axis=No
       try:
         w = torch.index_select(w, axis, perm[p].int())
       except KeyError:
+        print("ERROR: Keyerror during get_permuted_param.\n {axis}")
         continue
 
   return w
@@ -1031,11 +1030,12 @@ def weight_matching(ps: PermutationSpec,
   special_layers = ["P_bg358", "P_bg324", "P_bg337"]
   conv_layers = ['conv1.weight', 'conv1.bias', 'conv2.weight', 'conv2.bias']
   fc_layers = ['fc1.weight', 'fc1.bias', 'fc2.weight', 'fc2.bias']
-  try:
-    perm_sizes = {p: params_a[axes[0][0]].shape[axes[0][1]] for p, axes in ps.perm_to_axes.items()}
-  except KeyError as e:
-    print(f"ERROR: {str(e)}\n")
+  #try:
+  #  perm_sizes = {p: params_a[axes[0][0]].shape[axes[0][1]] for p, axes in ps.perm_to_axes.items()}
+  #except KeyError as e:
+  #  print(f"ERROR: {str(e)}\n")
     
+  perm_sizes = {p: params_a[axes[0][0]].shape[axes[0][1]] for p, axes in ps.perm_to_axes.items()}
   perm = dict()
   perm = {p: torch.arange(n) for p, n in perm_sizes.items()} if init_perm is None else init_perm
   perm_names = list(perm.keys())
