@@ -177,6 +177,21 @@ except:
 del model_b
 print(f"\r\033[K > Model B state_dict is loaded", end='\n')
 
+# Add missing keys from theta_0 to theta_1
+for key, value in theta_0.items():
+    if key not in theta_1:
+        theta_1[key] = value
+        print(f"Key '{key}' from theta_0 is missing in theta_1. Adding it.")
+
+# Add missing keys from theta_1 to theta_0
+for key, value in theta_1.items():
+    if key not in theta_0:
+        theta_0[key] = value
+        print(f"Key '{key}' from theta_1 is missing in theta_0. Adding it.")
+
+theta_0 = {key: value for key, value in theta_0.items() if "model_ema" not in key}
+theta_1 = {key: value for key, value in theta_1.items() if "model_ema" not in key}
+
 print(f" > Loading an extra reference of model A's state_dict into memory...", end='\n')
 theta_0_reference = theta_0.copy()
 
@@ -198,20 +213,7 @@ print(f"Size of theta_0_reference: {size_theta_0_reference_mb:.2f} MB")
 
 ##############
 
-# Add missing keys from theta_0 to theta_1
-for key, value in theta_0.items():
-    if key not in theta_1:
-        theta_1[key] = value
-        print(f"Key '{key}' from theta_0 is missing in theta_1. Adding it.")
 
-# Add missing keys from theta_1 to theta_0
-for key, value in theta_1.items():
-    if key not in theta_0:
-        theta_0[key] = value
-        print(f"Key '{key}' from theta_1 is missing in theta_0. Adding it.")
-
-theta_0 = {key: value for key, value in theta_0.items() if "model_ema" not in key}
-theta_1 = {key: value for key, value in theta_1.items() if "model_ema" not in key}
 
 #print("\nINFO: You can stop the loop and save the current iteration by pressing \"CTRL+p\"")
 
