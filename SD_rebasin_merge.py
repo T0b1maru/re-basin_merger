@@ -12,7 +12,6 @@ from safetensors import safe_open
 from weight_matching import sdunet_permutation_spec, weight_matching, apply_permutation
 from pynput import keyboard
 
-
 parser = argparse.ArgumentParser(description= "Merge two stable diffusion models with git re-basin")
 parser.add_argument("--model_a", type=str, help="Path to model a")
 parser.add_argument("--model_b", type=str, help="Path to model b")
@@ -21,11 +20,12 @@ parser.add_argument("--output", type=str, help="Output file name, without extens
 parser.add_argument("--usefp16", help="Whether to use half precision", action='store_true', default=False, required=False)
 parser.add_argument("--alpha", type=str, help="Ratio of model A to B", default="0.5", required=False)
 parser.add_argument("--iterations", type=str, help="Number of steps to take before reaching alpha", default="10", required=False)
+parser.add_argument("--layers", type=str, help="Which layers to merge. all, convolutional or fully_connected", default="all", required=False)
 
-args = parser.parse_args()   
+args = parser.parse_args() 
+merge_type = args.layers
 map_location = args.device
 pid = os.getpid()
-
 alpha = (1.0 - float(args.alpha))
 extension_a = os.path.splitext(args.model_a)
 
@@ -34,7 +34,6 @@ step = alpha/iterations
 permutation_spec = sdunet_permutation_spec()
 
 # set merge_option to "conv", "fc", or "all" depending on which layers you want to merge
-merge_type = "all"
 
 pause_flag = False
 continue_flag = False
@@ -44,15 +43,18 @@ current_key = set()
 
 print("  ---  Running Re-basin merger  ---\n")
 
+if args.device == "cuda":
+    print(" - Using CUDA")
+else:
+    print(" - using CPU/RAM")
+
 if args.usefp16:
     print(" - Using half precision")
 else:
     print(" - Using full precision")
 
-if args.device == "cuda":
-    print(" - Using CUDA\n")
-else:
-    print(" - using CPU/RAM\n")
+print(f" - Merging {merge_type} layers\n\n")
+
 
 def safetensors_load(ckpt, map_location="cpu"):
     extension = os.path.splitext(ckpt)[1]
@@ -65,13 +67,6 @@ def safetensors_load(ckpt, map_location="cpu"):
             for key in f.keys():
                 sd[key] = f.get_tensor(key)
         return {'state_dict': sd}
-
-def flatten_params(model):
-    try:
-        sd_ld = model['state_dict']
-    except:
-        sd_ld = model
-    return sd_ld
 
 def save_model ():
     if os.name == 'posix':
@@ -107,7 +102,11 @@ def save_model ():
                 print("\nPlease enter y or n")
     print("\nSaving " + output_file + "...")
     #save as safetensors
-    torch.save({"state_dict": theta_0}, output_file)
+    theta_0_tensors = {}
+    for k, v in theta_0.items():
+        theta_0_tensors[k] = v.clone().detach()
+    save_file(theta_0_tensors, output_file)
+    #torch.save({"state_dict": theta_0}, output_file)
     print("Saved!\n")
 
 def on_press(key):
@@ -161,7 +160,7 @@ except:
     theta_0 = model_a
 print(f"\r\033[K > Model A state_dict is loaded", end='\n')
 
-# Delete the reference to model_a/b to free up memory
+# Delete the reference to model_a to free up memory
 del model_a
 
 print(f" > Loading models B into memory...", end='\r')
@@ -181,34 +180,20 @@ print(f"\r\033[K > Model B state_dict is loaded", end='\n')
 for key, value in theta_0.items():
     if key not in theta_1:
         theta_1[key] = value
-        print(f"Key '{key}' from theta_0 is missing in theta_1. Adding it.")
+        print(f" ==> Key '{key}' from model A is missing in model B. Adding it.")
 
 # Add missing keys from theta_1 to theta_0
 for key, value in theta_1.items():
     if key not in theta_0:
         theta_0[key] = value
-        print(f"Key '{key}' from theta_1 is missing in theta_0. Adding it.")
+        print(f" <== Key '{key}' from model B is missing in model A. Adding it.")
 
 theta_0 = {key: value for key, value in theta_0.items() if "model_ema" not in key}
 theta_1 = {key: value for key, value in theta_1.items() if "model_ema" not in key}
 
-print(f" > Loading an extra reference of model A's state_dict into memory...", end='\n')
+print(f"\n > Loading an extra reference of model A's state_dict into memory...", end='\n')
 theta_0_reference = theta_0.copy()
-
-# Get the size of theta_0
-size_theta_0 = sys.getsizeof(theta_0)
-size_theta_1 = sys.getsizeof(theta_1)
-size_theta_0_reference = sys.getsizeof(theta_0_reference)
-
-# Convert size to MB
-size_theta_0_mb = size_theta_0 / (1024 * 1024)
-size_theta_1_mb = size_theta_1 / (1024 * 1024)
-size_theta_0_reference_mb = size_theta_0_reference / (1024 * 1024)
-
-# Print the size of theta_0 in MB to the console
-print(f"Size of theta_0: {size_theta_0_mb:.2f} MB")
-print(f"Size of theta_1: {size_theta_1_mb:.2f} MB")
-print(f"Size of theta_0_reference: {size_theta_0_reference_mb:.2f} MB")
+print(f"\r\033[K > extra reference of model A is loaded", end='\n')
 
 
 ##############
@@ -260,7 +245,6 @@ for x in range(iterations):
     else:
         new_alpha = step
     print(f"new alpha = {new_alpha}\n")
-    
 
     print("FINDING PERMUTATIONS")
 
@@ -285,8 +269,8 @@ for x in range(iterations):
             theta_0[key] = (1 - new_alpha) * (theta_0[key]) + (new_alpha) * (theta_3[key])
     elif merge_type == "all":
         # Merge entire state_dict
-        all_layers = ["first_stage_model.decoder.norm_out.weight", "first_stage_model.decoder.norm_out.bias", "first_stage_model.encoder.norm_out.weight", "first_stage_model.encoder.norm_out.bias", "model.diffusion_model.out.0.weight", "model.diffusion_model.out.0.bias"]
-        for key in all_layers:
+        #all_layers = ["first_stage_model.decoder.norm_out.weight", "first_stage_model.decoder.norm_out.bias", "first_stage_model.encoder.norm_out.weight", "first_stage_model.encoder.norm_out.bias", "model.diffusion_model.out.0.weight", "model.diffusion_model.out.0.bias"]
+        for key in theta_3.keys():
             theta_0[key] = (1 - new_alpha) * (theta_0[key]) + (new_alpha) * (theta_3[key])
 
 

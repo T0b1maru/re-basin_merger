@@ -1118,18 +1118,22 @@ def weight_matching(ps: PermutationSpec,
         oldL = torch.vdot(torch.flatten(A), torch.flatten(torch.eye(n)[perm[p].long()]))
         newL = torch.vdot(torch.flatten(A), torch.flatten(torch.eye(n)[ci, :]))
 
-        if newL - oldL != 0 and first:
+        #if newL - oldL != 0 and first:
+        #  sum += abs((newL-oldL).item())
+        #  number += 1
+        #  print(f"\033[2K\r > Skipped keys for first permutation: {len(skip_keys_1)}/{len(torch.randperm(len(perm_names)))}\n > {p}: {newL - oldL}", end='')
+        #if newL - oldL != 0 and not first:
+        #  sum += abs((newL-oldL).item())
+        #  number += 1
+        #  print(f"\033[2K\r > Skipped keys for second permutation: {len(skip_keys_2)}/{len(torch.randperm(len(perm_names)))}\n > {p}: {newL - oldL}", end='')
+        #if newL - oldL == 0 and first:
+        #  skip_keys_1.append(p)
+        #if newL - oldL == 0  and not first:
+        #  skip_keys_2.append(p)
+        if newL - oldL != 0:
           sum += abs((newL-oldL).item())
           number += 1
-          print(f"\033[2K\r > Skipped keys for first permutation: {len(skip_keys_1)}/{len(torch.randperm(len(perm_names)))}\n > {p}: {newL - oldL}", end='')
-        if newL - oldL != 0 and not first:
-          sum += abs((newL-oldL).item())
-          number += 1
-          print(f"\033[2K\r > Skipped keys for second permutation: {len(skip_keys_2)}/{len(torch.randperm(len(perm_names)))}\n > {p}: {newL - oldL}", end='')
-        if newL - oldL == 0 and first:
-          skip_keys_1.append(p)
-        if newL - oldL == 0  and not first:
-          skip_keys_2.append(p)
+          print(f"\r\033[K > {p}: {newL - oldL}", end='')
 
         progress = progress or newL > oldL + 1e-12
             
