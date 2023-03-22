@@ -6,6 +6,7 @@ import torch.nn as nn
 import signal
 import platform
 import sys
+import time
 
 from safetensors.torch import save_file
 from safetensors import safe_open
@@ -41,6 +42,14 @@ pause_key = {keyboard.Key.ctrl, keyboard.KeyCode.from_char('p')}
 current_key = set()
 
 print("  ---  Running Re-basin merger  ---\n")
+
+ratio_a = alpha
+ratio_b = 1 - alpha
+model_a_name = os.path.basename(args.model_a)
+model_b_name = os.path.basename(args.model_b)
+
+output_str = f"Will attempt to merge {ratio_a*100:.0f}% of {model_a_name} and {ratio_b*100:.0f}% of {model_b_name} together.\n"
+print(output_str)
 
 if args.device == "cuda":
     print(" - Using CUDA")
@@ -154,6 +163,7 @@ if args.device == "cuda":
 
 # Load the models
 print(f" > Loading models A into memory...", end='\r')
+start_time = time.time()
 
 model_a = safetensors_load(args.model_a, map_location=map_location)
 if not 'state_dict' in model_a:
@@ -162,10 +172,26 @@ try:
     theta_0 = model_a["state_dict"]
 except:
     theta_0 = model_a
+    
 print(f"\r\033[K > Model A state_dict is loaded", end='\n')
+
+if args.usefp16:
+    print(f" > Converting Model A to float16...", end='\r')
+    start_conv_time = time.time()
+    theta_0 = {k: v.to(torch.float16) for k, v in theta_0.items()}
+    end_conv_time = time.time()
+    print(f"\r\033[K > Model A is converted to float16 in {end_conv_time - start_conv_time:.4f} seconds", end='\n')
+
+else:
+    print(f" > Converting Model A to float32...", end='\r')
+    start_conv_time = time.time()
+    theta_0 = {k: v.to(torch.float32) for k, v in theta_0.items()}
+    end_conv_time = time.time()
+    print(f"\r\033[K > Model A is converted to float32 in {end_conv_time - start_conv_time:.4f} seconds", end='\n')
 
 # Delete the reference to model_a to free up memory
 del model_a
+
 
 print(f" > Loading models B into memory...", end='\r')
 model_b = safetensors_load(args.model_b, map_location=map_location)
@@ -176,9 +202,25 @@ try:
 except:
     theta_1 = model_b
 
+print(f"\r\033[K > Model B state_dict is loaded", end='\n')
+
+if args.usefp16:
+    print(f" > Converting Model B to float16...", end='\r')
+    start_conv_time = time.time()
+    theta_1 = {k: v.to(torch.float16) for k, v in theta_1.items()}
+    end_conv_time = time.time()
+    print(f"\r\033[K > Model B is converted to float16 in {end_conv_time - start_conv_time:.4f} seconds", end='\n')
+else:
+    print(f" > Converting Model B to float32...", end='\r')
+    start_conv_time = time.time()
+    theta_1 = {k: v.to(torch.float32) for k, v in theta_1.items()}
+    end_conv_time = time.time()
+    print(f"\r\033[K > Model B is converted to float32 in {end_conv_time - start_conv_time:.4f} seconds", end='\n')
+
 # Delete the reference to model_b to free up memory
 del model_b
-print(f"\r\033[K > Model B state_dict is loaded", end='\n')
+print(f"\n> Total time to load and convert models: {time.time() - start_time:.4f} seconds\n")
+
 
 # Add missing keys from theta_0 to theta_1
 for key, value in theta_0.items():

@@ -1042,6 +1042,8 @@ def weight_matching(ps: PermutationSpec,
 
   if not first:
     print("Second permutation")
+  else:
+    print("First permutation")
 
   if fast:
     for iteration in range(max_iter):
