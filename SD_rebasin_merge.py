@@ -216,12 +216,12 @@ print(f"\r\033[K > Model B state_dict is loaded", end='\n')
 
 # Delete the reference to model_b to free up memory
 del model_b
-print(f"\n> Total time to load and convert models: {time.time() - start_time:.4f} seconds\n")
-
-skip_keys = ["model_ema", "epoch", "global_step", "pytorch-lightning_version", "loops", "callbacks", "lr_schedulers" ,"NativeMixedPrecisionPlugin"]
-theta_0 = {key: value for key, value in theta_0.items() if all(skip not in key for skip in skip_keys)}
-theta_0_reference = {key: value for key, value in theta_0_reference.items() if all(skip not in key for skip in skip_keys)}
-theta_1 = {key: value for key, value in theta_1.items() if all(skip not in key for skip in skip_keys)}
+#print(f"\n> Total time to load and convert models: {time.time() - start_time:.4f} seconds\n")
+#
+#skip_keys = ["model_ema", "epoch", "global_step", "pytorch-lightning_version", "loops", "callbacks", "lr_schedulers" ,"NativeMixedPrecisionPlugin"]
+#theta_0 = {key: value for key, value in theta_0.items() if all(skip not in key for skip in skip_keys)}
+#theta_0_reference = {key: value for key, value in theta_0_reference.items() if all(skip not in key for skip in skip_keys)}
+#theta_1 = {key: value for key, value in theta_1.items() if all(skip not in key for skip in skip_keys)}
 
 
 ## Add missing keys from theta_0 to theta_1
@@ -286,6 +286,13 @@ for x in range(iterations):
     else:
         new_alpha = step
     print(f"New training alpha = {new_alpha}\n")
+    
+    theta_0 = {key: (1 - (new_alpha)) * theta_0[key] + (new_alpha) * value for key, value in theta_1.items() if "model" in key and key in theta_1}
+
+    if x == 0:
+        for key in theta_1.keys():
+            if "model" in key and key not in theta_0:
+                theta_0[key] = theta_1[key]
 
     print("FINDING PERMUTATIONS\n")
 
@@ -315,5 +322,10 @@ for x in range(iterations):
 
 print("\nDone!")
 #listener.stop()
-save_model()
+#save_model()
+output_file = f'{args.output}.ckpt'
+
+torch.save({
+        "state_dict": theta_0
+            }, output_file)
 
