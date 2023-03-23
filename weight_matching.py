@@ -629,11 +629,16 @@ def weight_matching(ps: PermutationSpec,
                      usefp16=False,
                      usedevice="cpu",
                      first=True,
-                     fast=True):
+                     fast=True,
+                     merge_type="all"):
   """Find a permutation of `params_b` to make them match `params_a`."""
 
-  special_layers = ["P_bg358", "P_bg324", "P_bg337"]
-
+  if merge_type == "all":
+    special_layers = ["P_bg358", "P_bg324", "P_bg337"]
+  elif merge_type == "convolutional":
+    special_layers = ["P_bg2", "P_bg3", "P_bg6", "P_bg7", "P_bg19", "P_bg20", "P_bg23", "P_bg24", "P_bg36", "P_bg37", "P_bg38", "P_bg39", "P_bg42","P_bg43", "P_bg44", "P_bg45", "P_bg57", "P_bg58", "P_bg61", "P_bg62", "P_bg74", "P_bg75", "P_bg76", "P_bg77", "P_bg80","P_bg81", "P_bg82", "P_bg83", "P_bg95", "P_bg96", "P_bg99", "P_bg100", "P_bg112", "P_bg113", "P_bg114", "P_bg115", "P_bg119", "P_bg120", "P_bg132", "P_bg133", "P_bg148", "P_bg149", "P_bg154", "P_bg155", "P_bg167", "P_bg168", "P_bg173", "P_bg174", "P_bg186", "P_bg187", "P_bg192", "P_bg193", "P_bg205", "P_bg206", "P_bg206", "P_bg207", "P_bg212", "P_bg213", "P_bg225", "P_bg226", "P_bg231", "P_bg232", "P_bg244", "P_bg245", "P_bg250", "P_bg251", "P_bg263", "P_bg264", "P_bg265", "P_bg266", "P_bg271", "P_bg272", "P_bg284", "P_bg285", "P_bg290", "P_bg291", "P_bg303", "P_bg304", "P_bg309", "P_bg310", "P_bg322", "P_bg323", "P_bg325", "P_bg326", "P_bg327", "P_bg328", "P_bg328", "P_bg329", "P_bg331", "P_bg332", "P_bg333", "P_bg334", "P_bg334", "P_bg335", "P_bg334", "P_bg335", "P_bg334", "P_bg335", "P_bg335", "P_bg336", "P_bg338", "P_bg339", "P_bg340", "P_bg341", "P_bg342", "P_bg343", "P_bg342", "P_bg343", "P_bg342", "P_bg343", "P_bg343", "P_bg344", "P_bg353", "P_bg354", "P_bg355", "P_bg356", "P_bg356", "P_bg357", "P_bg359", "P_bg360", "P_bg361", "P_bg362", "P_bg363", "P_bg364", ] 
+  elif merge_type == "fully_connected":
+    special_layers = ["P_bg370", "P_bg371", "P_bg371", "P_bg372", "P_bg373", "P_bg374", "P_bg374", "P_bg375", "P_bg376", "P_bg377", "P_bg377", "P_bg378", "P_bg379", "P_bg380", "P_bg380", "P_b381", "P_bg382", "P_bg383", "P_bg383", "P_bg384", "P_bg385", "P_bg386", "P_bg386", "P_bg387", "P_bg389", "P_bg390", "P_bg390", "P_bg391", "P_bg392", "P_bg393", "P_bg393", "P_bg394", "P_bg395", "P_bg396", "P_bg396", "P_bg397", "P_bg398", "P_bg399", "P_bg400", "P_bg401", "P_bg402", "P_bg403", "P_bg403", "P_bg404", "P_bg405", "P_bg406", "P_bg406", "P_bg407"]
   #try:
   #  perm_sizes = {p: params_a[axes[0][0]].shape[axes[0][1]] for p, axes in ps.perm_to_axes.items()}
   #except KeyError as e:
@@ -666,12 +671,13 @@ def weight_matching(ps: PermutationSpec,
           for wk, axis in ps.perm_to_axes[p]:
             w_a = params_a[wk]
             w_b = get_permuted_param(ps, perm, wk, params_b, except_axis=axis)
-            w_a = torch.moveaxis(w_a, axis, 0).reshape((n, -1))
-            w_b = torch.moveaxis(w_b, axis, 0).reshape((n, -1))
-            if usefp16:
-              A += w_a.to(torch.float16) @ w_b.T.to(torch.float16)
+            if usedevice == "cuda":
+              w_a = torch.moveaxis(w_a, axis, 0).reshape((n, -1)).to("cuda")
+              w_b = torch.moveaxis(w_b, axis, 0).reshape((n, -1)).T.to("cuda")
             else:
-              A += w_a @ w_b.T
+              w_a = torch.moveaxis(w_a, axis, 0).reshape((n, -1))
+              w_b = torch.moveaxis(w_b, axis, 0).reshape((n, -1)).T
+            A += torch.matmul(w_a.half(), w_b.half())
 
           A = A.cpu()
           ri, ci = linear_sum_assignment(A.detach().numpy(), maximize=True)
@@ -691,7 +697,7 @@ def weight_matching(ps: PermutationSpec,
             sum += abs((newL-oldL).item())
             number += 1
             #print(f"\r\033[K > {p}: {newL - oldL}", end='')
-            print(f"> {p}: {newL - oldL}")
+            print(f" > {p}: {newL - oldL}")
 
           perm[p] = torch.Tensor(ci)
       if not progress:
@@ -704,24 +710,23 @@ def weight_matching(ps: PermutationSpec,
   else:
     for iteration in range(max_iter):
       progress = False
-      
-      for i, p_ix in enumerate(torch.randperm(len(perm_names))):
+      for p_ix in torch.randperm(len(perm_names)):
         p = perm_names[p_ix]
         n = perm_sizes[p]
         if usefp16:
           A = torch.zeros((n, n), dtype=torch.float16)
         else:
           A = torch.zeros((n, n))
-
         for wk, axis in ps.perm_to_axes[p]:
           w_a = params_a[wk]
           w_b = get_permuted_param(ps, perm, wk, params_b, except_axis=axis)
-          w_a = torch.moveaxis(w_a, axis, 0).reshape((n, -1))
-          w_b = torch.moveaxis(w_b, axis, 0).reshape((n, -1))
-          if usefp16:
-            A += w_a.to(torch.float16) @ w_b.T.to(torch.float16)
+          if usedevice == "cuda":
+            w_a = torch.moveaxis(w_a, axis, 0).reshape((n, -1)).to("cuda")
+            w_b = torch.moveaxis(w_b, axis, 0).reshape((n, -1)).T.to("cuda")
           else:
-            A += w_a @ w_b.T
+            w_a = torch.moveaxis(w_a, axis, 0).reshape((n, -1))
+            w_b = torch.moveaxis(w_b, axis, 0).reshape((n, -1)).T
+          A += torch.matmul(w_a.half(), w_b.half())
 
         A = A.cpu()
         ri, ci = linear_sum_assignment(A.detach().numpy(), maximize=True)
@@ -741,12 +746,9 @@ def weight_matching(ps: PermutationSpec,
           sum += abs((newL-oldL).item())
           number += 1
           #print(f"\r\033[K > {p}: {newL - oldL}", end='')
-          print(f" > {p}: {newL - oldL}")
+        print(f" > {p}: {newL - oldL}")
 
-        progress = progress or newL > oldL + 1e-12
-            
         perm[p] = torch.Tensor(ci)
-
       if not progress:
         break
     if number > 0:

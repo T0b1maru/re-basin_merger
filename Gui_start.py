@@ -55,7 +55,7 @@ with demo:
 
         iterations = int(iterations)
         if os.name == 'posix':
-            rebasin_cmd = "python " + os.path.dirname(__file__) + "/SD_rebasin_merge.py --model_a \"" + modelA + "\" --model_b \"" + modelB + "\"  --layers " + layers + " --output " + output +  str(usefp16_type) + " --alpha " + str(alpha) + " --iterations " + str(iterations) + " --device " + device_type
+            rebasin_cmd = "python " + os.path.dirname(__file__) + "/SD_rebasin_merge.py --model_a \"" + modelA + "\" --model_b \"" + modelB + "\"  --layers " + layers + " --output " + output +  str(usefp16_type) + " " +  str(go_fast) + " --alpha " + str(alpha) + " --iterations " + str(iterations) + " --device " + device_type
         if os.name == 'nt': 
             rebasin_cmd = "python " + os.path.dirname(__file__) + "\\SD_rebasin_merge.py --model_a \"" + modelA + "\" --model_b \"" + modelB + "\"  --layers " + layers + " --output " + output +  str(usefp16_type) + " " +  str(go_fast) + " --alpha " + str(alpha) + " --iterations " + str(iterations) + " --device " + device_type
 

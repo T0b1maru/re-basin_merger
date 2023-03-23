@@ -22,7 +22,7 @@ parser.add_argument("--usefp16", help="Whether to use half precision", action='s
 parser.add_argument("--alpha", type=str, help="Ratio of model A to B", default="0.5", required=False)
 parser.add_argument("--iterations", type=str, help="Number of steps to take before reaching alpha", default="10", required=False)
 parser.add_argument("--layers", type=str, help="Which layers to merge. all, convolutional or fully_connected", default="all", required=False)
-parser.add_argument("--fast", help="Whether top skip certain layers that are mostly unused", action='store_true', default=True, required=False)
+parser.add_argument("--fast", help="Whether top skip certain layers that are mostly unused", action='store_true', default=False, required=False)
 
 args = parser.parse_args() 
 merge_type = args.layers
@@ -176,18 +176,19 @@ except:
 print(f"\r\033[K > Model A state_dict is loaded", end='\n')
 print(f"\r\033[K > extra reference of model A is loaded", end='\n')
 
-#if args.usefp16:
-#    print(f" > Converting Model A in memory to float16...", end='\r')
-#    start_conv_time = time.time()
-#    theta_0 = {k: v.to(torch.float16) if isinstance(v, torch.Tensor) else (float(v) if isinstance(v, int) else v) for k, v in theta_0.items()}
-#    end_conv_time = time.time()
-#    print(f"\r\033[K > Model B is converted to float16 in {end_conv_time - start_conv_time:.4f} seconds", end='\n')
-#else:
-#    print(f" > Converting Model A in memory to float32...", end='\r')
-#    start_conv_time = time.time()
-#    theta_0 = {k: v.to(torch.float32) if isinstance(v, torch.Tensor) else (float(v) if isinstance(v, int) else v) for k, v in theta_0.items()}
-#    end_conv_time = time.time()
-#    print(f"\r\033[K > Model B is converted to float32 in {end_conv_time - start_conv_time:.4f} seconds", end='\n')
+if args.usefp16:
+    print(f" > Converting Model A to float16...", end='\r')
+    start_conv_time = time.time()
+    theta_0 = {k: v.to(torch.float16) for k, v in theta_0.items()}
+    end_conv_time = time.time()
+    print(f"\r\033[K > Model A is converted to float16 in {end_conv_time - start_conv_time:.4f} seconds", end='\n')
+
+else:
+    print(f" > Converting Model A to float32...", end='\r')
+    start_conv_time = time.time()
+    theta_0 = {k: v.to(torch.float32) for k, v in theta_0.items()}
+    end_conv_time = time.time()
+    print(f"\r\033[K > Model A is converted to float32 in {end_conv_time - start_conv_time:.4f} seconds", end='\n')
 
 # Delete the reference to model_a to free up memory
 del model_a
@@ -200,19 +201,20 @@ except:
     theta_1 = model_b
 
 print(f"\r\033[K > Model B state_dict is loaded", end='\n')
-#
-#if args.usefp16:
-#    print(f" > Converting Model B in memory to float16...", end='\r')
-#    start_conv_time = time.time()
-#    theta_1 = {k: v.to(torch.float16) if isinstance(v, torch.Tensor) else (float(v) if isinstance(v, int) else v) for k, v in theta_1.items()}
-#    end_conv_time = time.time()
-#    print(f"\r\033[K > Model B is converted to float16 in {end_conv_time - start_conv_time:.4f} seconds", end='\n')
-#else:
-#    print(f" > Converting Model B in memory to float32...", end='\r')
-#    start_conv_time = time.time()
-#    theta_1 = {k: v.to(torch.float32) if isinstance(v, torch.Tensor) else (float(v) if isinstance(v, int) else v) for k, v in theta_1.items()}
-#    end_conv_time = time.time()
-#    print(f"\r\033[K > Model B is converted to float32 in {end_conv_time - start_conv_time:.4f} seconds", end='\n')
+
+if args.usefp16:
+    print(f" > Converting Model B to float16...", end='\r')
+    start_conv_time = time.time()
+    theta_1 = {k: v.to(torch.float16) for k, v in theta_1.items()}
+    end_conv_time = time.time()
+    print(f"\r\033[K > Model B is converted to float16 in {end_conv_time - start_conv_time:.4f} seconds", end='\n')
+else:
+    print(f" > Converting Model B to float32...", end='\r')
+    start_conv_time = time.time()
+    theta_1 = {k: v.to(torch.float32) for k, v in theta_1.items()}
+    end_conv_time = time.time()
+    print(f"\r\033[K > Model B is converted to float32 in {end_conv_time - start_conv_time:.4f} seconds", end='\n')
+
 
 # Delete the reference to model_b to free up memory
 del model_b
@@ -259,7 +261,6 @@ elif merge_type == "fully_connected":
     for key in theta_0.keys():
         if key.startswith('fc'):
             fc_layers.append(key)
-
     for key in theta_1.keys():
         if key not in fc_layers and key.startswith('fc'):
             fc_layers.append(key)
@@ -289,18 +290,15 @@ for x in range(iterations):
     
     theta_0 = {key: (1 - (new_alpha)) * theta_0[key] + (new_alpha) * value for key, value in theta_1.items() if "model" in key and key in theta_1}
 
-    if x == 0:
-        for key in theta_1.keys():
-            if "model" in key and key not in theta_0:
-                theta_0[key] = theta_1[key]
-
     print("FINDING PERMUTATIONS\n")
 
     # Replace theta_0 with a permutated version using model A and B    
-    first_permutation, y = weight_matching(permutation_spec, theta_0_reference, theta_0, x, usefp16=args.usefp16, usedevice=args.device, first=True, fast=args.fast)
+    first_permutation, y = weight_matching(permutation_spec, theta_0_reference, theta_0, x, usefp16=args.usefp16, usedevice=args.device, first=True, fast=args.fast, merge_type=args.layers)
     theta_0 = apply_permutation(permutation_spec, first_permutation, theta_0)
-    second_permutation, z = weight_matching(permutation_spec, theta_1, theta_0, x, usefp16=args.usefp16, usedevice=args.device, first=False, fast=args.fast)
+    
+    second_permutation, z = weight_matching(permutation_spec, theta_1, theta_0, x, usefp16=args.usefp16, usedevice=args.device, first=False, fast=args.fast, merge_type=args.layers)
     theta_3= apply_permutation(permutation_spec, second_permutation, theta_0)
+    
     new_alpha = torch.nn.functional.normalize(torch.sigmoid(torch.Tensor([y, z])), p=1, dim=0).tolist()[0]
 
     # Weighted sum of the permutations
@@ -322,10 +320,5 @@ for x in range(iterations):
 
 print("\nDone!")
 #listener.stop()
-#save_model()
-output_file = f'{args.output}.ckpt'
-
-torch.save({
-        "state_dict": theta_0
-            }, output_file)
-
+save_model()
+#output_file = f'{args.output}.ckpt'
