@@ -14,7 +14,7 @@ with demo:
 
     with gr.Row():
         iterations_box = gr.Number(label="Iterations", value=100)
-        alpha_box = gr.Slider(value=0.5, minimum=0, maximum=1, step=0.1, label="Alpha")
+        alpha_box = gr.Slider(value=0.5, minimum=0, maximum=1, step=0.001, label="Alpha")
 
     with gr.Row():
         usefp16_box = gr.Checkbox(label="Use fp16", value=True)
