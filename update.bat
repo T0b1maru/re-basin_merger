@@ -1,3 +1,2 @@
-@echo off
 git pull
-pause
+update.bat

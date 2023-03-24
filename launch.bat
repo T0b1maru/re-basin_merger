@@ -1,4 +1,4 @@
 @echo off
-pip install gradio
+call .\rebasin\Scripts\activate.bat
 python Gui_start.py
 pause
