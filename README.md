@@ -5,7 +5,7 @@ Based on https://github.com/ogkalu2/Merge-Stable-Diffusion-models-without-distor
 
 Info will follow..
 
-A note on only merging convolutional layers or only the fully connected layers:
+- A note on only merging convolutional layers or only the fully connected layers:
 
 In general, merging the convolutional layers would affect the low-level features of the generated images, such as edges, textures, and basic shapes, while merging the fully connected layers would affect the high-level features, such as overall structure, composition, and global style.
 
@@ -81,7 +81,7 @@ py -3 SD_rebasin_merge.py --model_a "nameofmodela.ckpt" --model_b "nameofmodelb.
 | --iterations | 10 | no | Number of steps to take before reaching alpha |
 | --device | cpu | no | Use "cuda" for full gpu usage. Dont add if less than 24GB VRAM |
 | --fast | | no | Skips mostly unused layers to speed up iterations. Add if you want to use it. |
-| --layers | all | no | Merge "all", "convolutional" for "fully_connected". Stil WIP so don't use for now  |
+| --layers | all | no | Merge "all", "convolutional" or "fully_connected". Stil WIP so don't use for now  |
 
 ## Issues & fixes:
 
