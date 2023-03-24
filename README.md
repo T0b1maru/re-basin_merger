@@ -67,7 +67,7 @@ python SD_rebasin_merge.py --model_a nameofmodela.ckpt --model_b nameofmodelb.ck
 
 Windows:
 ```sh
-python SD_rebasin_merge_windows.py --model_a nameofmodela.ckpt --model_b nameofmodelb.ckpt  ...
+py -3 SD_rebasin_merge.py --model_a "nameofmodela.ckpt" --model_b "nameofmodelb.ckpt"  ...
 ```
 
 ### Options:
