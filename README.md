@@ -1,6 +1,16 @@
 # Re-basin Stable Diffusion model merging
 Based on https://github.com/ogkalu2/Merge-Stable-Diffusion-models-without-distortion
 
+## Info
+
+Info will follow..
+
+A note on only merging convolutional layers or only the fully connected layers:
+```
+In general, merging the convolutional layers would affect the low-level features of the generated images, such as edges, textures, and basic shapes, while merging the fully connected layers would affect the high-level features, such as overall structure, composition, and global style.
+
+For example, if the convolutional layers are merged, the generated images may have similar low-level details but with different high-level compositions or styles. On the other hand, if the fully connected layers are merged, the generated images may have similar high-level compositions or styles but with different low-level details.
+```
 ## Installation
 
 Install python packages with pip or pip3 depending on your system
@@ -55,4 +65,5 @@ python SD_rebasin_merge_windows.py --model_a nameofmodela.ckpt --model_b nameofm
 
 ## Issues & fixes:
 
-You cannot use Safetensor files. Turn them into .ckpt files first
+ - .ckpt files take up more memory. Best to use safetensor files
+ - Currently turning of fast loops through all the weights so if you turn off fp16, for float32 calculations, it might be extremely slow/hang
