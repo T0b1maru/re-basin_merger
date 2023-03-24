@@ -28,15 +28,15 @@ args = parser.parse_args()
 merge_type = args.layers
 map_location = args.device
 pid = os.getpid()
-alpha = (1.0 - float(args.alpha))
+alpha = float(args.alpha)
 extension_a = os.path.splitext(args.model_a)[1]
 extension_b = os.path.splitext(args.model_b)[1]
 
 iterations = int(args.iterations)
 step = alpha/iterations
 
-ratio_a = alpha
-ratio_b = 1 - alpha
+ratio_a = 1 - alpha
+ratio_b = alpha
 model_a_name = os.path.basename(args.model_a)
 model_b_name = os.path.basename(args.model_b)
 

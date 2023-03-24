@@ -1063,7 +1063,10 @@ def weight_matching(ps: PermutationSpec,
             else:
               w_a = torch.moveaxis(w_a, axis, 0).reshape((n, -1))
               w_b = torch.moveaxis(w_b, axis, 0).reshape((n, -1)).T
-            A += torch.matmul(w_a.half(), w_b.half())
+            if usefp16:
+                w_a = w_a.half()
+                w_b = w_b.half()
+            A += torch.matmul(w_a, w_b)
 
           A = A.cpu()
           ri, ci = linear_sum_assignment(A.detach().numpy(), maximize=True)
@@ -1112,7 +1115,10 @@ def weight_matching(ps: PermutationSpec,
           else:
             w_a = torch.moveaxis(w_a, axis, 0).reshape((n, -1))
             w_b = torch.moveaxis(w_b, axis, 0).reshape((n, -1)).T
-          A += torch.matmul(w_a.half(), w_b.half())
+          if usefp16:
+              w_a = w_a.half()
+              w_b = w_b.half()
+          A += torch.matmul(w_a, w_b)
 
         A = A.cpu()
         ri, ci = linear_sum_assignment(A.detach().numpy(), maximize=True)
