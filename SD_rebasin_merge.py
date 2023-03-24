@@ -29,7 +29,8 @@ merge_type = args.layers
 map_location = args.device
 pid = os.getpid()
 alpha = (1.0 - float(args.alpha))
-extension_a = os.path.splitext(args.model_a)
+extension_a = os.path.splitext(args.model_a)[1]
+extension_b = os.path.splitext(args.model_b)[1]
 
 iterations = int(args.iterations)
 step = alpha/iterations
@@ -224,25 +225,27 @@ del model_b
 #theta_0 = {key: value for key, value in theta_0.items() if all(skip not in key for skip in skip_keys)}
 #theta_0_reference = {key: value for key, value in theta_0_reference.items() if all(skip not in key for skip in skip_keys)}
 #theta_1 = {key: value for key, value in theta_1.items() if all(skip not in key for skip in skip_keys)}
-theta_0 = {key: value for key, value in theta_0.items() if "model_ema" not in key}
+theta_0 = {key: value for key, value in theta_0.items() if "model_ema" not in key }
+theta_0_reference = {key: value for key, value in theta_0.items() if "model_ema" not in key}
 theta_1 = {key: value for key, value in theta_1.items() if "model_ema" not in key}
 
-## Add missing keys from theta_0 to theta_1
-#for key, value in theta_0.items():
-#    if key not in theta_1 and "model_ema" not in key:
-#        theta_1[key] = value
-#        print(f" ==> Key '{key}' from model A is missing in model B. Adding it.")
-
-## Add missing keys from theta_1 to theta_0
-#for key, value in theta_1.items():
-#    if key not in theta_0 and "model_ema" not in key: 
-#        theta_0[key] = value
-#        theta_0_reference[key] = value
-#        print(f" <== Key '{key}' from model B is missing in model A. Adding it.")
+for key in theta_1.keys():
+    if 'cond_stage_model.' in key:
+        if not key in theta_0:
+            theta_0[key] = theta_1[key].clone().detach()
+for key in theta_1.keys():
+    if 'cond_stage_model.' in key:
+        if not key in theta_0_reference:
+            theta_0_reference[key] = theta_1[key].clone().detach()
+for key in theta_0.keys():
+    if 'cond_stage_model.' in key:
+        if not key in theta_1:
+            theta_1[key] = theta_0[key].clone().detach()
+            
 
 ##############
-
-
+if extension_a == ".safetensors" or extension_b == ".safetensors":
+    print("\nINFO: Detecting use of a safetensor file.\n      These files work with lazy loading. First iteration will take longer.")
 
 #print("\nINFO: You can stop the loop and save the current iteration by pressing \"CTRL+p\"")
 
@@ -289,7 +292,7 @@ for x in range(iterations):
         new_alpha = step
     print(f"New training alpha = {new_alpha}\n")
     
-    theta_0 = {key: (1 - (new_alpha)) * theta_0[key] + (new_alpha) * value for key, value in theta_1.items() if "model" in key and key in theta_1}
+    theta_0 = {key: (1 - (new_alpha)) * theta_0[key] + (new_alpha) * value for key, value in theta_1.items()}
 
     print("FINDING PERMUTATIONS\n")
 
