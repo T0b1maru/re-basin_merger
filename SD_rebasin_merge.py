@@ -224,7 +224,8 @@ del model_b
 #theta_0 = {key: value for key, value in theta_0.items() if all(skip not in key for skip in skip_keys)}
 #theta_0_reference = {key: value for key, value in theta_0_reference.items() if all(skip not in key for skip in skip_keys)}
 #theta_1 = {key: value for key, value in theta_1.items() if all(skip not in key for skip in skip_keys)}
-
+theta_0 = {key: value for key, value in theta_0.items() if "model_ema" not in key}
+theta_1 = {key: value for key, value in theta_1.items() if "model_ema" not in key}
 
 ## Add missing keys from theta_0 to theta_1
 #for key, value in theta_0.items():
