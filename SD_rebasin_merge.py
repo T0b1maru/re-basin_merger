@@ -112,108 +112,6 @@ def signal_handler(sig, frame):
 # Register the signal handler for SIGTERM
 signal.signal(signal.SIGTERM, signal_handler)
 
-def initialize ():
-    # Load the model A and an extra copy for evaluation
-    print(f" > Loading models A into memory...", end='\r')
-    start_time = time.time()
-
-    model_a = load_model(args.model_a, map_location=map_location)
-    try:
-        theta_0 = model_a["state_dict"]
-        theta_0_reference = model_a["state_dict"]
-    except:
-        theta_0 = model_a
-        theta_0_reference = model_a
-
-    print(f"\r\033[K > Model A state_dict is loaded", end='\n')
-    print(f"\r\033[K > extra reference of model A is loaded", end='\n')
-
-    # Conversion of float32/float16 to reduce issues and increase speed
-    if args.usefp16:
-        print(f" > Converting Model A to float16...", end='\r')
-        start_conv_time = time.time()
-        theta_0 = {k: v.to(torch.float16) for k, v in theta_0.items()}
-        end_conv_time = time.time()
-        print(f"\r\033[K > Model A is converted to float16 in {end_conv_time - start_conv_time:.4f} seconds", end='\n')
-    else:
-        print(f" > Converting Model A to float32...", end='\r')
-        start_conv_time = time.time()
-        theta_0 = {k: v.to(torch.float32) for k, v in theta_0.items()}
-        end_conv_time = time.time()
-        print(f"\r\033[K > Model A is converted to float32 in {end_conv_time - start_conv_time:.4f} seconds", end='\n')
-
-    # Delete the reference to model_a to free up memory
-    del model_a
-
-    print(f" > Loading models B into memory...", end='\r')
-    model_b = load_model(args.model_b, map_location=map_location)
-    try:
-        theta_1 = model_b["state_dict"]
-    except:
-        theta_1 = model_b
-    print(f"\r\033[K > Model B state_dict is loaded", end='\n')
-
-    # Conversion of float32/float16 to reduce issues and increase speed
-    if args.usefp16:
-        print(f" > Converting Model B to float16...", end='\r')
-        start_conv_time = time.time()
-        theta_1 = {k: v.to(torch.float16) for k, v in theta_1.items()}
-        end_conv_time = time.time()
-        print(f"\r\033[K > Model B is converted to float16 in {end_conv_time - start_conv_time:.4f} seconds", end='\n')
-    else:
-        print(f" > Converting Model B to float32...", end='\r')
-        start_conv_time = time.time()
-        theta_1 = {k: v.to(torch.float32) for k, v in theta_1.items()}
-        end_conv_time = time.time()
-        print(f"\r\033[K > Model B is converted to float32 in {end_conv_time - start_conv_time:.4f} seconds", end='\n')
-
-
-    # Delete the reference to model_b to free up memory
-    del model_b
-    print(f"\n> Total time to load and convert models: {time.time() - start_time:.4f} seconds\n")
-
-    # Remove model_ema as this causes issues
-    theta_0 = {key: value for key, value in theta_0.items() if "model_ema" not in key }
-    theta_0_reference = {key: value for key, value in theta_0.items() if "model_ema" not in key}
-    theta_1 = {key: value for key, value in theta_1.items() if "model_ema" not in key}
-
-    # Remove a couple of SD keys that cause issues
-    for key in theta_1.keys():
-        if 'cond_stage_model.' in key:
-            if not key in theta_0:
-                theta_0[key] = theta_1[key].clone().detach()
-    for key in theta_1.keys():
-        if 'cond_stage_model.' in key:
-            if not key in theta_0_reference:
-                theta_0_reference[key] = theta_1[key].clone().detach()
-    for key in theta_0.keys():
-        if 'cond_stage_model.' in key:
-            if not key in theta_1:
-                theta_1[key] = theta_0[key].clone().detach()
-                
-    if extension_a == ".safetensors" or extension_b == ".safetensors":
-        print("\nINFO: Detecting use of a safetensor file.\n      These files work with lazy loading. First iteration will take longer.")
-
-    # create the convolutional and fully connected layer lists
-    if merge_type == "convolutional":
-        # Merge only convolutional layers
-        conv_layers = []
-        for key in theta_0.keys():
-            if key.startswith('conv'):
-                conv_layers.append(key)
-        for key in theta_1.keys():
-            if key not in conv_layers and key.startswith('conv'):
-                conv_layers.append(key)
-    elif merge_type == "fully_connected":
-        # Merge only fully connected layers
-        fc_layers = []
-        for key in theta_0.keys():
-            if key.startswith('fc'):
-                fc_layers.append(key)
-        for key in theta_1.keys():
-            if key not in fc_layers and key.startswith('fc'):
-                fc_layers.append(key)
-
 #####################################
 print("  ---  Running Re-basin merger  ---\n")
 
@@ -231,11 +129,112 @@ else:
     print(" - Using full precision")
 
 if args.fast:
-    print(" - Running fast")
+    print(" - Running fast\n")
 else:
-    print(" - Running normal speed")
+    print(" - Running normal speed\n")
 
-initialize()
+
+# Load the model A and an extra copy for evaluation
+print(f" > Loading models A into memory...", end='\r')
+start_time = time.time()
+
+model_a = load_model(args.model_a, map_location=map_location)
+try:
+    theta_0 = model_a["state_dict"]
+    theta_0_reference = model_a["state_dict"]
+except:
+    theta_0 = model_a
+    theta_0_reference = model_a
+
+print(f"\r\033[K > Model A state_dict is loaded", end='\n')
+print(f"\r\033[K > extra reference of model A is loaded", end='\n')
+
+# Conversion of float32/float16 to reduce issues and increase speed
+if args.usefp16:
+    print(f" > Converting Model A to float16...", end='\r')
+    start_conv_time = time.time()
+    theta_0 = {k: v.to(torch.float16) for k, v in theta_0.items()}
+    end_conv_time = time.time()
+    print(f"\r\033[K > Model A is converted to float16 in {end_conv_time - start_conv_time:.4f} seconds", end='\n')
+else:
+    print(f" > Converting Model A to float32...", end='\r')
+    start_conv_time = time.time()
+    theta_0 = {k: v.to(torch.float32) for k, v in theta_0.items()}
+    end_conv_time = time.time()
+    print(f"\r\033[K > Model A is converted to float32 in {end_conv_time - start_conv_time:.4f} seconds", end='\n')
+
+# Delete the reference to model_a to free up memory
+del model_a
+
+print(f" > Loading models B into memory...", end='\r')
+model_b = load_model(args.model_b, map_location=map_location)
+try:
+    theta_1 = model_b["state_dict"]
+except:
+    theta_1 = model_b
+print(f"\r\033[K > Model B state_dict is loaded", end='\n')
+
+# Conversion of float32/float16 to reduce issues and increase speed
+if args.usefp16:
+    print(f" > Converting Model B to float16...", end='\r')
+    start_conv_time = time.time()
+    theta_1 = {k: v.to(torch.float16) for k, v in theta_1.items()}
+    end_conv_time = time.time()
+    print(f"\r\033[K > Model B is converted to float16 in {end_conv_time - start_conv_time:.4f} seconds", end='\n')
+else:
+    print(f" > Converting Model B to float32...", end='\r')
+    start_conv_time = time.time()
+    theta_1 = {k: v.to(torch.float32) for k, v in theta_1.items()}
+    end_conv_time = time.time()
+    print(f"\r\033[K > Model B is converted to float32 in {end_conv_time - start_conv_time:.4f} seconds", end='\n')
+
+
+# Delete the reference to model_b to free up memory
+del model_b
+print(f"\n> Total time to load and convert models: {time.time() - start_time:.4f} seconds\n")
+
+# Remove model_ema as this causes issues
+theta_0 = {key: value for key, value in theta_0.items() if "model_ema" not in key }
+theta_0_reference = {key: value for key, value in theta_0.items() if "model_ema" not in key}
+theta_1 = {key: value for key, value in theta_1.items() if "model_ema" not in key}
+
+# Remove a couple of SD keys that cause issues
+for key in theta_1.keys():
+    if 'cond_stage_model.' in key:
+        if not key in theta_0:
+            theta_0[key] = theta_1[key].clone().detach()
+for key in theta_1.keys():
+    if 'cond_stage_model.' in key:
+        if not key in theta_0_reference:
+            theta_0_reference[key] = theta_1[key].clone().detach()
+for key in theta_0.keys():
+    if 'cond_stage_model.' in key:
+        if not key in theta_1:
+            theta_1[key] = theta_0[key].clone().detach()
+            
+if extension_a == ".safetensors" or extension_b == ".safetensors":
+    print("\nINFO: Detecting use of a safetensor file.\n      These files work with lazy loading. First iteration will take longer.")
+
+# create the convolutional and fully connected layer lists
+if merge_type == "convolutional":
+    # Merge only convolutional layers
+    conv_layers = []
+    for key in theta_0.keys():
+        if key.startswith('conv'):
+            conv_layers.append(key)
+    for key in theta_1.keys():
+        if key not in conv_layers and key.startswith('conv'):
+            conv_layers.append(key)
+elif merge_type == "fully_connected":
+    # Merge only fully connected layers
+    fc_layers = []
+    for key in theta_0.keys():
+        if key.startswith('fc'):
+            fc_layers.append(key)
+    for key in theta_1.keys():
+        if key not in fc_layers and key.startswith('fc'):
+            fc_layers.append(key)
+
 
 for x in range(iterations):
     print(f"""
