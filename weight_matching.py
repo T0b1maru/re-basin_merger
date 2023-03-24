@@ -1142,26 +1142,3 @@ def weight_matching(ps: PermutationSpec,
     else:
       average = 0
     return (perm, average)
-
-
-def test_weight_matching():
-  """If we just have a single hidden layer then it should converge after just one step."""
-  ps = mlp_permutation_spec(num_hidden_layers=3)
-  print(ps.axes_to_perm)
-  rng = torch.Generator()
-  rng.manual_seed(13)
-  num_hidden = 10
-  shapes = {
-      "layer0.weight": (2, num_hidden),
-      "layer0.bias": (num_hidden, ),
-      "layer1.weight": (num_hidden, 3),
-      "layer1.bias": (3, )
-  }
-
-  params_a = {k: random.normal(rngmix(rng, f"a-{k}"), shape) for k, shape in shapes.items()}
-  params_b = {k: random.normal(rngmix(rng, f"b-{k}"), shape) for k, shape in shapes.items()}
-  perm = weight_matching(rng, ps, params_a, params_b)
-  print(perm)
-
-if __name__ == "__main__":
-  test_weight_matching()
