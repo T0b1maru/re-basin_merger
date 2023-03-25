@@ -1088,6 +1088,8 @@ def weight_matching(ps: PermutationSpec,
             #print(f"\r\033[K > {p}: {newL - oldL}", end='')
             print(f" > {p}: {newL - oldL}")
 
+          progress = progress or newL > oldL + 1e-12
+
           perm[p] = torch.Tensor(ci)
       if not progress:
         break
@@ -1139,6 +1141,8 @@ def weight_matching(ps: PermutationSpec,
           number += 1
           #print(f"\r\033[K > {p}: {newL - oldL}", end='')
         print(f" > {p}: {newL - oldL}")
+
+        progress = progress or newL > oldL + 1e-12
 
         perm[p] = torch.Tensor(ci)
       if not progress:

@@ -235,7 +235,7 @@ elif merge_type == "fully_connected":
         if key not in fc_layers and key.startswith('fc'):
             fc_layers.append(key)
 
-
+start_conv_time = time.time()
 for x in range(iterations):
     print(f"""
     ---------------------
@@ -274,6 +274,8 @@ for x in range(iterations):
         # Merge entire state_dict
         for key in theta_3.keys():
             theta_0[key] = (1 - new_alpha) * (theta_0[key]) + (new_alpha) * (theta_3[key])
+end_conv_time = time.time()
+print(f"\n> Total time to merge keys: {time.time() - start_time:.4f} seconds\n")
 
 save_model()
 print("\nDone!")
