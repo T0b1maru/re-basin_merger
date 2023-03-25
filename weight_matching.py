@@ -82,7 +82,8 @@ def sdunet_permutation_spec() -> PermutationSpec:
      **skip("cond_stage_model.transformer.encoder.layers.0.self_attn.q_proj.weight", None, None),
      **skip("cond_stage_model.transformer.encoder.layers.0.self_attn.q_proj.bias", None, None),
      **skip("embedding_manager.embedder.transformer.text_model.embeddings.position_embedding.weight", None, None),
-     
+     **skip("embedding_manager.embedder.transformer.text_model.embeddings.position_ids", None, None),
+
      **skip("cond_stage_model.transformer.encoder.layers.0.self_attn.out_proj.weight", None, None),
      **skip("cond_stage_model.transformer.encoder.layers.0.self_attn.out_proj.bias", None, None),
      **skip("cond_stage_model.transformer.encoder.layers.0.layer_norm1.weight", None, None),
