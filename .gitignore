@@ -3,3 +3,4 @@
 /extra-scripts
 *.ckpt
 *.safetensors
+re-basin_config.json
