@@ -2,6 +2,9 @@ import gradio as gr
 import os
 import time
 import json
+from gradio.themes.base import Base
+
+
 
 # Define the filename to save the input values
 SAVE_FILE = "re-basin_config.json"
@@ -22,7 +25,7 @@ def load_input_values():
 # Load saved input values (if any)
 saved_inputs = load_input_values()
 
-demo = gr.Blocks(title="Re-basin Merger")
+demo = gr.Blocks(title="Re-basin Merger", theme='gradio/monochrome', width="100%")
 with demo:
     error_box = gr.Textbox(label="Error", visible=False)
 
@@ -45,7 +48,6 @@ with demo:
         merge_layers_radio = gr.Radio(["All", "Convolutional layers", "Fully connected layers"], label="Layers to be merged", value=saved_inputs.get("merge_layers_radio", "All"), interactive=True)
 
     with gr.Row():
-        install_btn = gr.Button("install re-basin requirements")
         run_btn = gr.Button("Run re-basin")
         prune_btn = gr.Button("Prune model")
 
@@ -104,20 +106,8 @@ with demo:
             os.system(prune_cmd)
         }
 
-    def install():
-        install_cmd = "pip install -r" + os.path.dirname(__file__) + "\\requirements.txt"
-        install_cmd2 = "pip install -r" + os.path.dirname(__file__) + "\\requirements2.txt -i https://download.pytorch.org/whl/cu113 "
-
-        return {
-            os.system(install_cmd),
-            os.system(install_cmd2),
-            "done"
-        }
-
     run_btn.click(run_rebasin,[modelA_box, modelB_box, output_box, iterations_box, alpha_box, usefp16_box, cuda_box, merge_layers_radio, fast_box])
     prune_btn.click(run_prune,[output_box, usefp16_box])
-    install_btn.click(install)
-
 
 if __name__ == "__main__":
     demo.launch()

@@ -200,15 +200,15 @@ theta_1 = {key: value for key, value in theta_1.items() if "model_ema" not in ke
 
 # Remove a couple of SD keys that cause issues
 for key in theta_1.keys():
-    if 'cond_stage_model.' in key:
+    if 'cond_stage_model.' in key or "cumprod" in key or "betas" in key or "posterior" in key:
         if not key in theta_0:
             theta_0[key] = theta_1[key].clone().detach()
 for key in theta_1.keys():
-    if 'cond_stage_model.' in key:
+    if 'cond_stage_model.' in key or "cumprod" in key or "betas" in key or "posterior" in key:
         if not key in theta_0_reference:
             theta_0_reference[key] = theta_1[key].clone().detach()
 for key in theta_0.keys():
-    if 'cond_stage_model.' in key:
+    if 'cond_stage_model.' in key or "cumprod" in key or "betas" in key or "posterior" in key:
         if not key in theta_1:
             theta_1[key] = theta_0[key].clone().detach()
             
