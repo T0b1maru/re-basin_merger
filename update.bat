@@ -1,2 +1,2 @@
 git pull
-update.bat
+setup.bat
