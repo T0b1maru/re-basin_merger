@@ -100,7 +100,7 @@ with demo:
 
     def run_prune(output, usefp16):
         usefp16_type = " --usefp16 " if usefp16 else ""
-        prune_cmd = "python " + os.path.dirname(__file__) + "/prune.py " + str(usefp16_type) + output + ".safetensors " + output + "_pruned.ckpt" 
+        prune_cmd = "python " + os.path.dirname(__file__) + "/prune.py " + str(usefp16_type) + output + ".ckpt " + output + "_pruned.ckpt" 
 
         return {
             os.system(prune_cmd)
