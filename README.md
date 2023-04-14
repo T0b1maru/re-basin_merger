@@ -86,5 +86,3 @@ py -3 SD_rebasin_merge.py --model_a "nameofmodela.ckpt" --model_b "nameofmodelb.
 ## Issues & fixes:
 
  - .ckpt files take up more memory. Best to use safetensor files
- - Currently turning of fast loops through all the weights so if you turn off fp16, for float32 calculations, it might be extremely slow/hang
- - Float32 broken atm
