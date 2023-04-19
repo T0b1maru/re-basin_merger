@@ -42,7 +42,7 @@ with demo:
     with gr.Row():
         usefp16_box = gr.Checkbox(label="Use fp16", value=saved_inputs.get("usefp16_box", True))
         cuda_box = gr.Checkbox(label="GPU", value=saved_inputs.get("cuda_box", False))
-        fast_box = gr.Checkbox(label="Fast", value=saved_inputs.get("fast_box", True))
+        fast_box = gr.Checkbox(label="Fast", value=saved_inputs.get("fast_box", False))
 
     with gr.Row():
         merge_layers_radio = gr.Radio(["All", "Convolutional layers", "Fully connected layers"], label="Layers to be merged", value=saved_inputs.get("merge_layers_radio", "All"), interactive=True)
