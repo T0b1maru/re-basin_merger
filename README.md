@@ -16,7 +16,7 @@ For example, if the convolutional layers are merged, the generated images may ha
 #### For Windows
 
 ```sh
-install.bat
+setup.bat
 ```
 
 update with:
@@ -80,7 +80,7 @@ py -3 SD_rebasin_merge.py --model_a "nameofmodela.ckpt" --model_b "nameofmodelb.
 | --alpha | 0.5 | no | Ratio of model A to B |
 | --iterations | 10 | no | Number of steps to take before reaching alpha |
 | --device | cpu | no | Use "cuda" for full gpu usage. Dont add if less than 24GB VRAM |
-| --fast | | no | Skips mostly unused layers to speed up iterations. Add if you want to use it. |
+| --fast | | yes | Skips mostly unused layers to speed up iterations. Add if you want to use it. |
 | --layers | all | no | Merge "all", "convolutional" or "fully_connected". Stil WIP so don't use for now  |
 
 ## Issues & fixes:

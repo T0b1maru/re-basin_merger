@@ -22,7 +22,7 @@ parser.add_argument("--usefp16", help="Whether to use half precision", action='s
 parser.add_argument("--alpha", type=str, help="Ratio of model A to B", default="0.5", required=False)
 parser.add_argument("--iterations", type=str, help="Number of steps to take before reaching alpha", default="10", required=False)
 parser.add_argument("--layers", type=str, help="Which layers to merge. all, convolutional or fully_connected", default="all", required=False)
-parser.add_argument("--fast", help="Whether top skip certain layers that are mostly unused", action='store_true', default=False, required=False)
+parser.add_argument("--fast", help="Whether top skip certain layers that are mostly unused", action='store_true', default=True, required=False)
 
 args = parser.parse_args() 
 merge_type = args.layers
@@ -154,14 +154,16 @@ if args.usefp16:
     print(f" > Converting Model A to float16...", end='\r')
     start_conv_time = time.time()
     theta_0 = {k: v.to(torch.float16) for k, v in theta_0.items()}
+    theta_0_reference = {k: v.to(torch.float16) for k, v in theta_0_reference.items()}
     end_conv_time = time.time()
-    print(f"\r\033[K > Model A is converted to float16 in {end_conv_time - start_conv_time:.4f} seconds", end='\n')
+    print(f"\r\033[K > Model A and extra reference is converted to float16 in {end_conv_time - start_conv_time:.4f} seconds", end='\n')
 else:
     print(f" > Converting Model A to float32...", end='\r')
     start_conv_time = time.time()
     theta_0 = {k: v.to(torch.float32) for k, v in theta_0.items()}
+    theta_0_reference = {k: v.to(torch.float32) for k, v in theta_0_reference.items()}
     end_conv_time = time.time()
-    print(f"\r\033[K > Model A is converted to float32 in {end_conv_time - start_conv_time:.4f} seconds", end='\n')
+    print(f"\r\033[K > Model A extra reference is converted to float32 in {end_conv_time - start_conv_time:.4f} seconds", end='\n')
 
 # Delete the reference to model_a to free up memory
 del model_a
@@ -236,6 +238,7 @@ elif merge_type == "fully_connected":
             fc_layers.append(key)
 
 start_conv_time = time.time()
+
 for x in range(iterations):
     print(f"""
     ---------------------
