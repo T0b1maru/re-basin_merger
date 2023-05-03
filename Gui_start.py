@@ -50,6 +50,7 @@ with demo:
     with gr.Row():
         run_btn = gr.Button("Run re-basin")
         prune_btn = gr.Button("Prune model")
+        print_cmd_btn = gr.Button("Print command")  # Add the "Print command" button
 
     output = gr.Textbox(label="Output", visible=False)
 
@@ -106,6 +107,29 @@ with demo:
             os.system(prune_cmd)
         }
 
+    def print_command(modelA, modelB, output, iterations, alpha, usefp16, device, merge_layers, fast):
+        device_type = "cuda" if device else "cpu"
+        usefp16_type = " --usefp16 " if usefp16 else ""
+        go_fast = " --fast " if fast else ""
+        
+        if merge_layers == "All":
+            layers = "all"
+        elif merge_layers == "Convolutional layers":
+            layers = "convolutional"
+        elif merge_layers == "Fully connected layers":
+            layers = "fully_connected"
+        
+        iterations = int(iterations)
+        if os.name == 'posix':
+            rebasin_cmd = "python " + os.path.dirname(__file__) + "/SD_rebasin_merge.py --model_a \"" + modelA + "\" --model_b \"" + modelB + "\"  --layers " + layers + " --output " + output +  str(usefp16_type) + " " +  str(go_fast) + " --alpha " + str(alpha) + " --iterations " + str(iterations) + " --device " + device_type
+        if os.name == 'nt': 
+            rebasin_cmd = "python " + os.path.dirname(__file__) + "\\SD_rebasin_merge.py --model_a \"" + modelA + "\" --model_b \"" + modelB + "\"  --layers " + layers + " --output " + output +  str(usefp16_type) + " " +  str(go_fast) + " --alpha " + str(alpha) + " --iterations " + str(iterations) + " --device " + device_type
+
+        print(rebasin_cmd)
+        return {
+            output: gr.update(value=rebasin_cmd)
+        }
+        
     run_btn.click(run_rebasin,[modelA_box, modelB_box, output_box, iterations_box, alpha_box, usefp16_box, cuda_box, merge_layers_radio, fast_box])
     prune_btn.click(run_prune,[output_box, usefp16_box])
 
