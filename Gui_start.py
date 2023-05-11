@@ -50,13 +50,9 @@ with demo:
     with gr.Row():
         run_btn = gr.Button("Run re-basin")
         prune_btn = gr.Button("Prune model")
-        print_cmd_btn = gr.Button("Print command")  # Add the "Print command" button
+        print_cmd_btn = gr.Button("Print command")
 
-    output = gr.Textbox(label="Output", visible=False)
-
-    with gr.Column(visible=False) as output_col:
-        diagnosis_box = gr.Textbox(label="Diagnosis")
-        patient_summary_box = gr.Textbox(label="Patient Summary")
+    output_cmd = gr.Textbox(label="Command to run manually",visible=False, lines=2)
 
     def run_rebasin(modelA, modelB, output, iterations, alpha, usefp16, device, merge_layers, fast):
         inputs = {
@@ -124,12 +120,11 @@ with demo:
             rebasin_cmd = "python " + os.path.dirname(__file__) + "/SD_rebasin_merge.py --model_a \"" + modelA + "\" --model_b \"" + modelB + "\"  --layers " + layers + " --output " + output +  str(usefp16_type) + " " +  str(go_fast) + " --alpha " + str(alpha) + " --iterations " + str(iterations) + " --device " + device_type
         if os.name == 'nt': 
             rebasin_cmd = "python " + os.path.dirname(__file__) + "\\SD_rebasin_merge.py --model_a \"" + modelA + "\" --model_b \"" + modelB + "\"  --layers " + layers + " --output " + output +  str(usefp16_type) + " " +  str(go_fast) + " --alpha " + str(alpha) + " --iterations " + str(iterations) + " --device " + device_type
-
-        print(rebasin_cmd)
-        return {
-            output: gr.update(value=rebasin_cmd)
-        }
         
+        return {output_cmd: gr.update(value=rebasin_cmd, visible=True)}
+
+
+    print_cmd_btn.click(print_command,[modelA_box, modelB_box, output_box, iterations_box, alpha_box, usefp16_box, cuda_box, merge_layers_radio, fast_box], outputs=output_cmd) 
     run_btn.click(run_rebasin,[modelA_box, modelB_box, output_box, iterations_box, alpha_box, usefp16_box, cuda_box, merge_layers_radio, fast_box])
     prune_btn.click(run_prune,[output_box, usefp16_box])
 
