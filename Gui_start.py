@@ -110,7 +110,8 @@ with demo:
         device_type = "cuda" if device else "cpu"
         usefp16_type = " --usefp16 " if usefp16 else ""
         go_fast = " --fast " if fast else ""
-        
+        fix_clip_option = " --fix_clip " if fix_clip else ""
+
         if merge_layers == "All":
             layers = "all"
         elif merge_layers == "Convolutional layers":
