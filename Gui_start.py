@@ -43,6 +43,7 @@ with demo:
         usefp16_box = gr.Checkbox(label="Use fp16", value=saved_inputs.get("usefp16_box", False))
         cuda_box = gr.Checkbox(label="GPU", value=saved_inputs.get("cuda_box", False))
         fast_box = gr.Checkbox(label="Fast", value=saved_inputs.get("fast_box", True))
+        fix_clip_box = gr.Checkbox(label="Fix Clip", value=saved_inputs.get("fix_clip_box", True))
 
     with gr.Row():
         merge_layers_radio = gr.Radio(["All", "Convolutional layers", "Fully connected layers"], label="Layers to be merged", value=saved_inputs.get("merge_layers_radio", "All"), interactive=True)
@@ -54,7 +55,7 @@ with demo:
 
     output_cmd = gr.Textbox(label="Command to run manually",visible=False, lines=2)
 
-    def run_rebasin(modelA, modelB, output, iterations, alpha, usefp16, device, merge_layers, fast):
+    def run_rebasin(modelA, modelB, output, iterations, alpha, usefp16, device, merge_layers, fast, fix_clip):
         inputs = {
             "modelA_box": modelA,
             "modelB_box": modelB,
@@ -64,7 +65,8 @@ with demo:
             "usefp16_box": usefp16,
             "cuda_box": device,
             "merge_layers_radio": merge_layers,
-            "fast_box": fast
+            "fast_box": fast,
+            "fix_clip_box": fix_clip
         }
         save_input_values(inputs)
         
@@ -76,7 +78,8 @@ with demo:
         device_type = "cuda" if device else "cpu"
         usefp16_type = " --usefp16 " if usefp16 else ""
         go_fast = " --fast " if fast else ""
-        
+        fix_clip_option = " --fix_clip " if fix_clip else ""
+
         if merge_layers == "All":
             layers = "all"
         elif merge_layers == "Convolutional layers":
@@ -87,9 +90,9 @@ with demo:
 
         iterations = int(iterations)
         if os.name == 'posix':
-            rebasin_cmd = "python " + os.path.dirname(__file__) + "/SD_rebasin_merge.py --model_a \"" + modelA + "\" --model_b \"" + modelB + "\"  --layers " + layers + " --output " + output +  str(usefp16_type) + " " +  str(go_fast) + " --alpha " + str(alpha) + " --iterations " + str(iterations) + " --device " + device_type
+            rebasin_cmd = "python " + os.path.dirname(__file__) + "/SD_rebasin_merge.py --model_a \"" + modelA + "\" --model_b \"" + modelB + "\"  --layers " + layers + " --output " + output +  str(usefp16_type) + " " +  str(go_fast) + " --alpha " + str(alpha) + " --iterations " + str(iterations) + " --device " + device_type + fix_clip_option
         if os.name == 'nt': 
-            rebasin_cmd = "python " + os.path.dirname(__file__) + "\\SD_rebasin_merge.py --model_a \"" + modelA + "\" --model_b \"" + modelB + "\"  --layers " + layers + " --output " + output +  str(usefp16_type) + " " +  str(go_fast) + " --alpha " + str(alpha) + " --iterations " + str(iterations) + " --device " + device_type
+            rebasin_cmd = "python " + os.path.dirname(__file__) + "\\SD_rebasin_merge.py --model_a \"" + modelA + "\" --model_b \"" + modelB + "\"  --layers " + layers + " --output " + output +  str(usefp16_type) + " " +  str(go_fast) + " --alpha " + str(alpha) + " --iterations " + str(iterations) + " --device " + device_type + fix_clip_option
 
         return {
             os.system(rebasin_cmd)
@@ -103,7 +106,7 @@ with demo:
             os.system(prune_cmd)
         }
 
-    def print_command(modelA, modelB, output, iterations, alpha, usefp16, device, merge_layers, fast):
+    def print_command(modelA, modelB, output, iterations, alpha, usefp16, device, merge_layers, fast, fix_clip):
         device_type = "cuda" if device else "cpu"
         usefp16_type = " --usefp16 " if usefp16 else ""
         go_fast = " --fast " if fast else ""
@@ -124,8 +127,8 @@ with demo:
         return {output_cmd: gr.update(value=rebasin_cmd, visible=True)}
 
 
-    print_cmd_btn.click(print_command,[modelA_box, modelB_box, output_box, iterations_box, alpha_box, usefp16_box, cuda_box, merge_layers_radio, fast_box], outputs=output_cmd) 
-    run_btn.click(run_rebasin,[modelA_box, modelB_box, output_box, iterations_box, alpha_box, usefp16_box, cuda_box, merge_layers_radio, fast_box])
+    print_cmd_btn.click(print_command,[modelA_box, modelB_box, output_box, iterations_box, alpha_box, usefp16_box, cuda_box, merge_layers_radio, fast_box, fix_clip_box], outputs=output_cmd) 
+    run_btn.click(run_rebasin,[modelA_box, modelB_box, output_box, iterations_box, alpha_box, usefp16_box, cuda_box, merge_layers_radio, fast_box, fix_clip_box])
     prune_btn.click(run_prune,[output_box, usefp16_box])
 
 if __name__ == "__main__":

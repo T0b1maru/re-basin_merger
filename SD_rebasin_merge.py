@@ -23,6 +23,7 @@ parser.add_argument("--alpha", type=str, help="Ratio of model A to B", default="
 parser.add_argument("--iterations", type=str, help="Number of steps to take before reaching alpha", default="10", required=False)
 parser.add_argument("--layers", type=str, help="Which layers to merge. all, convolutional or fully_connected", default="all", required=False)
 parser.add_argument("--fast", help="Whether top skip certain layers that are mostly unused", action='store_true', default=True, required=False)
+parser.add_argument("--fix_clip", help="Check and fix tensor clipping issues", action='store_true', default=False, required=False)
 
 args = parser.parse_args() 
 merge_type = args.layers
@@ -100,6 +101,27 @@ def save_model ():
     save_file(theta_0_tensors, output_file)
     #torch.save({"state_dict": theta_0}, output_file)
     print("Saved!\n")
+
+def check_and_fix_tensors(theta_0: dict):
+    wrong_index = []
+
+    if "cond_stage_model.transformer.text_model.embeddings.position_ids" in theta_0:
+        check_tensor = theta_0["cond_stage_model.transformer.text_model.embeddings.position_ids"]
+    elif "cond_stage_model.transformer.embeddings.position_ids" in theta_0:
+        check_tensor = theta_0["cond_stage_model.transformer.embeddings.position_ids"]
+    else:
+        print("No matching keys found in the model.")
+        return wrong_index
+
+    for i in range(torch.numel(check_tensor)):
+        tensor_value = check_tensor.data[0, i]
+        value_error = tensor_value - i
+        if abs(value_error) > 0.0001:
+            wrong_index.append(i)
+            print(f"Wrong index: {i}, Value: {tensor_value:.5f}, Deviation: {value_error:.5f}")
+            check_tensor.data[0, i] = i  # Fix the tensor value
+
+    return wrong_index
 
 # Define signal handler for SIGTERM
 def signal_handler(sig, frame):
@@ -279,6 +301,10 @@ for x in range(iterations):
             theta_0[key] = (1 - new_alpha) * (theta_0[key]) + (new_alpha) * (theta_3[key])
 end_conv_time = time.time()
 print(f"\n> Total time to merge keys: {time.time() - start_time:.4f} seconds\n")
+
+
+if args.fix_clip:
+    check_and_fix_tensors(theta_0)
 
 save_model()
 print("\nDone!")
