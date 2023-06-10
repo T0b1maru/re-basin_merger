@@ -119,7 +119,7 @@ def check_and_fix_tensors(theta_0: dict):
         if abs(value_error) > 0.0001:
             wrong_index.append(i)
             print(f"Wrong index: {i}, Value: {tensor_value:.5f}, Deviation: {value_error:.5f}")
-            check_tensor.data[0, i] = i  # Fix the tensor value
+            check_tensor.data[0, i] = float(int(i))  # Cast the integer index back to float
 
     return wrong_index
 
